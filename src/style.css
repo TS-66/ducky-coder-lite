@@ -8,64 +8,110 @@
    ========================================================================== */
 
 :root {
-  /* Surfaces, darkest to lightest. */
-  --bg-app: #0b0e14;
-  --bg-editor: #0d1117;
-  --bg-sidebar: #0f131b;
-  --bg-panel: #11151d;
-  --bg-raised: #161b24;
-  --bg-hover: #1b212c;
-  --bg-active: #212836;
-  --bg-selected: #1d2735;
-  --bg-input: #0a0d13;
+  /* ---------------------------------------------------------------------
+     Surfaces.
 
-  /* Text. */
-  --fg: #d5dae3;
-  --fg-strong: #f0f3f8;
-  --fg-muted: #8b94a6;
-  --fg-subtle: #626b7d;
+     A neutral, near-black ramp. The important property is that the greys are
+     *neutral* -- no blue or green cast -- because a cast reads as "tinted
+     theme" rather than "dark theme", and immediately makes the chrome look
+     like a different product from the editor. Hue is reserved for meaning:
+     the cyan accent, the diff colours, and nothing else.
 
-  /* Borders. */
-  --border: #1e242f;
-  --border-strong: #2a3240;
-  --border-subtle: #171c25;
+     Ordering, darkest to lightest:
+       #050506  terminal   -- darker than the editor, so a running shell reads
+                              as a recessed well
+       #09090A  activity   -- the darkest chrome, a spine
+       #0B0B0C  editor     -- the reference surface everything else is judged
+                              against
+       #121214  sidebar, tabs, AI panel -- one step up, so panels read as
+                              panels rather than as part of the canvas
+       #18181C  inputs and capsules -- the interactive layer
+     --------------------------------------------------------------------- */
+  --bg-app: #0b0b0c;
+  --bg-editor: #0b0b0c;
+  --bg-sidebar: #121214;
+  --bg-panel: #121214;
+  --bg-activity: #09090a;
+  --bg-terminal: #050506;
+  --bg-raised: #18181c;
+  --bg-hover: #1c1c20;
+  --bg-active: #232328;
+  --bg-selected: #1a1a1f;
+  --bg-input: #18181c;
 
-  /* Accent: a warm amber-yellow, for the duck. Used sparingly so it reads as
-     brand rather than as "everything is highlighted". */
-  --accent: #e8b339;
-  --accent-dim: #b8892a;
-  --accent-fg: #0b0e14;
-  --accent-soft: rgba(232, 179, 57, 0.12);
+  /* Text. Four steps is enough; more and the hierarchy stops being legible. */
+  --fg: #c8c8cc;
+  --fg-strong: #f4f4f6;
+  --fg-muted: #8e8e93;
+  --fg-subtle: #5a5a62;
+  --gutter: #3a3a3c;
+
+  /* Ghost text for the inline autocomplete predictor. Italic and dimmer than
+     any real token, so it can never be mistaken for committed code. */
+  --ghost: #5a5a62;
+
+  /* Borders. --border is the single-pixel division between columns;
+     --border-input is the visible edge of an interactive field. */
+  --border: #1f1f23;
+  --border-strong: #26262b;
+  --border-subtle: #16161a;
+  --border-input: #2c2c32;
+
+  /* Accent: neon cyan, for exactly three things -- the active activity item,
+     the focused caret and selection, and AI attention. A fourth use dilutes
+     it into a general "highlight" and stops it meaning anything. */
+  --accent: #38bdf8;
+  --accent-dim: #0ea5e9;
+  --accent-fg: #06131a;
+  --accent-soft: rgba(56, 189, 248, 0.14);
+  --accent-glow: rgba(56, 189, 248, 0.35);
+
+  /* Agent mode. A cyan-to-purple loop, reserved for the one control that lets
+     the model act without a per-action confirmation. */
+  --agent-a: #38bdf8;
+  --agent-b: #a855f7;
 
   /* Semantic. */
-  --ok: #4ec98a;
-  --warn: #e0b341;
-  --err: #f2606b;
-  --info: #58a6ff;
-  --info-soft: rgba(88, 166, 255, 0.12);
+  --ok: #30d158;
+  --warn: #ffb224;
+  --err: #ff453a;
+  --info: #38bdf8;
+  --info-soft: rgba(56, 189, 248, 0.14);
+
+  /* Git status hues, deliberately soft: a file list where every colour is
+     saturated reads as an error list. */
+  --git-modified: #81c784;
+  --git-untracked: #e5c07b;
+  --git-conflict: #ff6b6b;
+  --git-staged: #7ee2ab;
 
   /* Diff. */
-  --diff-add-bg: rgba(78, 201, 138, 0.12);
-  --diff-add-fg: #7ee2ab;
-  --diff-del-bg: rgba(242, 96, 107, 0.12);
-  --diff-del-fg: #ff8f97;
+  --diff-add-bg: rgba(48, 209, 88, 0.1);
+  --diff-add-fg: #30d158;
+  --diff-del-bg: rgba(255, 69, 58, 0.1);
+  --diff-del-fg: #ff453a;
+  --diff-gutter: #26262b;
 
-  /* Metrics. Deliberately tight: this is a dense tool, not a web page. */
-  --h-activity: 44px;
+  /* Metrics. These numbers are what make the chrome feel dense and precise
+     rather than spacious. */
+  --h-title: 44px;
+  --h-activity: 48px;
   --h-tab: 35px;
   --h-status: 22px;
   --h-panel-header: 30px;
   --w-activity: 48px;
-  --w-sidebar: 260px;
+  --w-sidebar: 240px;
+  --w-ai: 380px;
   --w-panel: 220px;
 
   --radius: 4px;
   --radius-lg: 6px;
+  --radius-xl: 12px;
 
   --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto,
     "Helvetica Neue", Arial, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
-    "Liberation Mono", monospace;
+    "JetBrains Mono", "Fira Code", "Liberation Mono", monospace;
 
   --fs-xs: 10.5px;
   --fs-sm: 11.5px;

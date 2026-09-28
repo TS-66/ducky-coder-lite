@@ -23,6 +23,7 @@
  */
 
 import { h, fill, clear, button, IS_MAC } from "../core/dom";
+import { createTitleBar, type TitleBar } from "./titlebar";
 import { icons } from "./icons";
 import { store, type PanelId, type State } from "../core/store";
 import { api } from "../core/backend";
@@ -42,6 +43,7 @@ export interface Shell {
   bottomPanel: HTMLElement;
   bottomTabs: HTMLElement;
   bottomContent: HTMLElement;
+  titleBar: TitleBar;
   statusBar: HTMLElement;
   statusLeft: HTMLElement;
   statusRight: HTMLElement;
@@ -62,7 +64,19 @@ const PANELS: { id: PanelId; label: string; icon: () => SVGElement }[] = [
   { id: "extensions", label: "Extensions", icon: icons.extensions },
 ];
 
-export function createShell(mount: HTMLElement): Shell {
+export function createShell(
+  mount: HTMLElement,
+  titleBarActions: {
+    onBack: () => void;
+    onForward: () => void;
+    onOpenModelPicker: () => void;
+    onOpenAccount: () => void;
+    onOpenIndexingInfo: () => void;
+  },
+): Shell {
+  // --- Title bar ----------------------------------------------------------
+  const titleBar = createTitleBar(titleBarActions);
+
   // --- Activity bar -------------------------------------------------------
   const activityBar = h("nav", { class: "activity-bar", role: "navigation", "aria-label": "Primary" });
   const activityItems = new Map<PanelId, HTMLButtonElement>();
@@ -95,8 +109,50 @@ export function createShell(mount: HTMLElement): Shell {
     icons.duck(18),
     h("span", { class: "activity-dot", id: "ducky-dot" }),
   );
-  activityBar.appendChild(h("div", { class: "activity-spacer" }));
+  // A visual gap between the workspace views and the AI tools. The groups are
+  // the same colour, so without a break the bar reads as one undifferentiated
+  // list and the Ducky features look like more file views.
+  activityBar.appendChild(h("div", { class: "activity-group-gap" }));
+
+  // Chat: the same panel as the Ducky AI button, reached from the middle group
+  // so the AI tools are together and the settings stay alone at the bottom.
   activityBar.appendChild(aiButton);
+
+  // Notepads: free-form notes that persist across sessions. They are stored
+  // locally and capped, because an unbounded scratchpad is a memory leak with
+  // a user interface.
+  const notepadButton = h(
+    "button",
+    {
+      class: "activity-item",
+      title: "Notepads",
+      "aria-label": "Notepads",
+      onClick: () => {
+        window.dispatchEvent(new CustomEvent("ducky:toggle-notepads"));
+      },
+    },
+    icons.notepad(),
+  );
+  activityBar.appendChild(notepadButton);
+
+  // Features: what this build can actually do, read from the real build. A
+  // tour that lies about the app is worse than no tour.
+  const featuresButton = h(
+    "button",
+    {
+      class: "activity-item",
+      title: "Features",
+      "aria-label": "Features",
+      onClick: () => {
+        window.dispatchEvent(new CustomEvent("ducky:toggle-features"));
+      },
+    },
+    icons.info(),
+  );
+  activityBar.appendChild(featuresButton);
+
+  // Bottom group: settings alone, pinned to the foot of the bar.
+  activityBar.appendChild(h("div", { class: "activity-spacer" }));
   activityBar.appendChild(
     h(
       "button",
@@ -185,6 +241,10 @@ export function createShell(mount: HTMLElement): Shell {
   const root = h(
     "div",
     { class: "shell" },
+    // The title bar spans the full width above every column, including the
+    // activity dock, so the window history and the model capsule sit on one
+    // continuous line rather than being trapped inside a panel.
+    titleBar.el,
     // The horizontal band. The status bar is a sibling *below* this rather than
     // another column beside it, which is why it needs its own element: in a
     // single row it would sit to the right of the editor instead of beneath it.
@@ -209,6 +269,7 @@ export function createShell(mount: HTMLElement): Shell {
   // Focus trap target: the editor host, when one exists.
   const shell: Shell = {
     root,
+    titleBar,
     activityBar,
     sidebar,
     sidebarContent,

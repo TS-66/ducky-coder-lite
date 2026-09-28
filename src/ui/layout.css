@@ -45,9 +45,20 @@
   flex-direction: column;
   align-items: center;
   padding: 4px 0 0;
-  background: var(--bg-sidebar);
-  border-right: 1px solid var(--border-subtle);
+  /* The darkest chrome in the app, so the dock reads as a spine the panels
+     hang off rather than as another panel. */
+  background: var(--bg-activity);
+  border-right: 1px solid var(--border);
   gap: 2px;
+}
+
+/* The break between the workspace views and the AI tools. */
+.activity-group-gap {
+  width: 24px;
+  height: 1px;
+  margin: 8px 0;
+  background: var(--border);
+  flex: none;
 }
 
 .activity-item {
@@ -67,8 +78,13 @@
 }
 
 .activity-item.is-active {
-  color: var(--fg-strong);
+  color: var(--accent);
   border-left-color: var(--accent);
+  box-shadow: -1px 0 6px var(--accent-glow);
+}
+
+.activity-item.is-active svg {
+  filter: drop-shadow(0 0 4px var(--accent-glow));
 }
 
 .activity-item--ducky {
@@ -3397,5 +3413,452 @@ html[data-low-memory="on"] .status-item--critical {
 
   .status-item--perf {
     display: none;
+  }
+}
+
+/* ==========================================================================
+   Title bar
+
+   44px, flush with the editor background, no gradient and no separator. The
+   band spans the full window width, including the activity dock, so the window
+   history and the model capsule sit on one continuous line.
+
+   The centre group is absolutely positioned rather than flex-centred: a
+   breadcrumb that shifts sideways every time the model name changes length
+   reads as unstable, and the model name *does* change length.
+   ========================================================================== */
+
+.title-bar {
+  position: relative;
+  height: var(--h-title);
+  min-height: var(--h-title);
+  display: flex;
+  align-items: center;
+  background: var(--bg-editor);
+  color: var(--fg-muted);
+  user-select: none;
+  overflow: hidden;
+}
+
+.title-left {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding-left: 6px;
+  /* Never let the left cluster grow into the centred breadcrumb. */
+  max-width: 34%;
+  min-width: 0;
+  z-index: 2;
+}
+
+.title-history {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+
+.title-nav {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--fg-muted);
+  cursor: pointer;
+  transition: background 90ms ease, color 90ms ease;
+}
+
+.title-nav:hover {
+  background: var(--bg-hover);
+  color: var(--fg-strong);
+}
+
+.title-nav:active {
+  background: var(--bg-active);
+}
+
+.title-workspace {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 6px;
+  min-width: 0;
+  font-size: var(--fs-md);
+  color: var(--fg-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Centre: absolute so it is truly centred regardless of cluster widths. */
+.title-centre {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: var(--h-title);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.title-crumbs {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  max-width: 60%;
+  padding: 0 10px;
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: var(--fs-sm);
+  pointer-events: auto;
+}
+
+.title-crumb {
+  /* The root segment carries a folder glyph, so it needs to lay out as a pair
+     rather than as bare text. */
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--fg-strong);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.title-crumb > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Everything except the file itself is dimmed, so the eye lands on the file. */
+.title-crumb.is-muted {
+  color: var(--fg-muted);
+}
+
+.title-crumb-sep {
+  display: grid;
+  place-items: center;
+  color: var(--fg-subtle);
+  flex: none;
+}
+
+.title-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-right: 10px;
+  z-index: 2;
+}
+
+/* Indexing status. Hidden entirely when there is nothing to report, so the
+   bar does not carry a permanently inert label. */
+.title-index {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: transparent;
+  color: var(--fg-muted);
+  font-size: var(--fs-xs);
+  font-family: var(--font-ui);
+  cursor: pointer;
+  transition: background 90ms ease, color 90ms ease;
+}
+
+.title-index:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
+.title-index.is-active {
+  color: var(--accent);
+}
+
+.title-index-text {
+  white-space: nowrap;
+}
+
+/* A 10px ring with a gap that rotates. Cheap: one transform per frame on a
+   single small element. Suppressed entirely in low-memory mode, where the
+   compositor cost of a continuous animation is not worth a progress cue. */
+.title-spinner {
+  width: 10px;
+  height: 10px;
+  flex: none;
+  border-radius: 50%;
+  border: 1.5px solid var(--border-strong);
+  border-top-color: var(--accent);
+  animation: title-spin 700ms linear infinite;
+}
+
+@keyframes title-spin {
+  to { transform: rotate(360deg); }
+}
+
+html[data-low-memory="on"] .title-spinner {
+  animation: none;
+  border-top-color: var(--border-strong);
+}
+
+/* Model capsule: bg #18181C, border #26262B. */
+.title-model {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 8px 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--bg-raised);
+  color: var(--fg);
+  font-size: var(--fs-xs);
+  font-family: var(--font-ui);
+  cursor: pointer;
+  transition: background 90ms ease, border-color 90ms ease;
+}
+
+.title-model:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-input);
+}
+
+/* No key saved: the capsule says so, rather than pretending to be ready. */
+.title-model.is-unset {
+  color: var(--fg-subtle);
+}
+
+.title-model-name {
+  max-width: 190px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.title-model-chevron {
+  display: grid;
+  place-items: center;
+  color: var(--fg-muted);
+}
+
+/* Connection dot: 6px, green when live, grey when not. */
+.title-cloud {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--fg-subtle);
+  transition: background 160ms ease, box-shadow 160ms ease;
+}
+
+.title-cloud.is-online {
+  background: var(--ok);
+  box-shadow: 0 0 6px rgba(48, 209, 88, 0.6);
+}
+
+.title-cloud.is-offline {
+  background: #3a3a3c;
+  box-shadow: none;
+}
+
+.title-account {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+
+.title-avatar {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: linear-gradient(140deg, #f5b942, #e8801f);
+  color: #1a1206;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: var(--font-ui);
+  line-height: 1;
+  padding-bottom: 1px;
+}
+
+.title-account:hover .title-avatar {
+  box-shadow: 0 0 0 2px var(--bg-editor), 0 0 0 3px var(--border-strong);
+}
+
+/* ==========================================================================
+   Ducky AI panel — the parts that are specific to this build
+
+   The AI panel is 380px. Everything in it is tuned to that width: nothing wraps
+   that would not wrap at 360, and nothing relies on horizontal scrolling.
+   ========================================================================== */
+
+.ai-panel {
+  width: var(--w-ai);
+  min-width: 320px;
+  background: var(--bg-panel);
+  border-left: 1px solid var(--border);
+}
+
+/* --- Chat / Composer segmented control ------------------------------------ */
+
+.ai-seg {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding: 2px;
+  border-radius: var(--radius-lg);
+  background: var(--bg-app);
+  border: 1px solid var(--border-subtle);
+}
+
+.ai-seg-btn {
+  padding: 3px 10px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--fg-muted);
+  font-size: var(--fs-sm);
+  font-family: var(--font-ui);
+  cursor: pointer;
+  transition: background 90ms ease, color 90ms ease;
+}
+
+.ai-seg-btn:hover {
+  color: var(--fg);
+}
+
+.ai-seg-btn.is-active {
+  background: var(--bg-raised);
+  color: var(--fg-strong);
+}
+
+/* --- The agent switch ----------------------------------------------------- */
+
+.ai-agent {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--fg-muted);
+  font-size: var(--fs-xs);
+  font-family: var(--font-ui);
+  cursor: pointer;
+}
+
+.ai-agent:hover {
+  color: var(--fg);
+}
+
+.ai-agent.is-on {
+  color: var(--fg-strong);
+}
+
+/* A 22x12 track. Small enough to read as a switch rather than a button. */
+.ai-agent-track {
+  position: relative;
+  width: 22px;
+  height: 12px;
+  flex: none;
+  border-radius: 6px;
+  background: var(--bg-active);
+  transition: background 140ms ease;
+}
+
+.ai-agent.is-on .ai-agent-track {
+  background: linear-gradient(90deg, var(--agent-a), var(--agent-b));
+}
+
+.ai-agent-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--fg-strong);
+  transition: transform 140ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.ai-agent.is-on .ai-agent-knob {
+  transform: translateX(10px);
+  background: #fff;
+}
+
+.ai-agent-label {
+  letter-spacing: 0.02em;
+}
+
+.ai-actions-spacer {
+  flex: 1;
+}
+
+/* --- The composer capsule ------------------------------------------------- */
+
+.ai-composer-wrap {
+  position: relative;
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-xl);
+  background: var(--bg-raised);
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.ai-composer-wrap:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent-soft);
+}
+
+/* Agent mode is the one state where the input itself changes colour: a cyan to
+   purple sweep around the border, so the box you are about to type an
+   instruction into is unmistakably different from the box you were just having
+   a conversation in.
+
+   The gradient is painted on a pseudo-element rather than the element's own
+   border, because a gradient border needs a mask to leave the interior alone,
+   and masking a real element would also mask its text. */
+.ai-composer-wrap.is-agent {
+  border-color: transparent;
+  background:
+    linear-gradient(var(--bg-raised), var(--bg-raised)) padding-box,
+    linear-gradient(115deg, var(--agent-a), var(--agent-b), var(--agent-a))
+      border-box;
+  background-size: 100% 100%, 220% 100%;
+  background-position: 0 0, 0 0;
+  animation: agent-sweep 3.2s linear infinite;
+}
+
+@keyframes agent-sweep {
+  to {
+    background-position: 0 0, 220% 0;
+  }
+}
+
+html[data-low-memory="on"] .ai-composer-wrap.is-agent,
+html[data-animations="off"] .ai-composer-wrap.is-agent {
+  /* No continuous animation: hold the gradient still at its brightest point so
+     the state is still unmistakable without the compositor cost. */
+  animation: none;
+  background-position: 0 0, 60% 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-composer-wrap.is-agent {
+    animation: none;
+    background-position: 0 0, 60% 0;
   }
 }

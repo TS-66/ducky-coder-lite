@@ -85,8 +85,62 @@ initBridge();
 const root = document.getElementById("app");
 if (!root) throw new Error("#app is missing from index.html");
 
-const shell = createShell(root);
+// The title bar's own controls. Back/forward walk the tab history the shell
+// already keeps, and each right-hand button opens the surface its indicator
+// describes -- so nothing in the bar is decorative-only.
+const shell = createShell(root, {
+  onBack: () => historyNav(-1),
+  onForward: () => historyNav(1),
+  onOpenModelPicker: () => openSettings("ai"),
+  onOpenAccount: () => openSettings("general"),
+  onOpenIndexingInfo: () => {
+    store.update((st) => {
+      st.activePanel = "search";
+      st.panelVisible = true;
+    });
+  },
+});
 const keyboard = new KeyboardManager();
+
+/**
+ * Window history: the stack of tabs the user has focused, most recent last.
+ *
+ * The title bar's chevrons walk it. It is a real stack rather than "previous
+ * tab", so back-then-forward returns to exactly where you came from -- which is
+ * what people expect from a browser, and what they notice immediately when it
+ * is missing.
+ */
+const tabHistory: string[] = [];
+let historyCursor = -1;
+
+function noteTabFocus(id: string | undefined): void {
+  if (!id) return;
+  // Truncate anything ahead of the cursor: once you go back and then open a
+  // different file, the forward entries no longer describe a path you can take.
+  if (historyCursor < tabHistory.length - 1) tabHistory.length = historyCursor + 1;
+  if (tabHistory[historyCursor] === id) return;
+  tabHistory.push(id);
+  historyCursor = tabHistory.length - 1;
+}
+
+function historyNav(delta: number): void {
+  const next = historyCursor + delta;
+  if (next < 0 || next >= tabHistory.length) return;
+  const id = tabHistory[next];
+  // Do not push onto the stack while walking it, or the cursor drifts.
+  historyCursor = next;
+  store.update((st) => {
+    if (st.tabs.some((t) => t.id === id)) st.activeTabId = id;
+  });
+}
+
+// Record focus changes so the title bar's chevrons have something to walk.
+// Subscribing rather than instrumenting every call site means a tab opened
+// from the explorer, a diff, or the quick-open palette all land in the history
+// without each of them having to remember.
+store.subscribe(() => {
+  noteTabFocus(store.state.activeTabId ?? undefined);
+});
 let editor: EditorHost | null = null;
 let appInfo: AppInfo | null = null;
 let composerOpen = false;
@@ -147,6 +201,7 @@ function cursorColumn(): number {
 const paint = raf(() => {
   const s = store.state;
   renderShell(shell, s);
+  shell.titleBar.render(s);
   renderTabs(shell.editorTabs, s);
   renderStatusBar(shell.statusLeft, shell.statusRight, s);
   if (s.bottomPanel) renderBottomTabs(shell, s);

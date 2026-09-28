@@ -76,8 +76,24 @@ addEventListener("load", () => {
 });
 </script>`;
 
+// A still mode, for screenshots. Chromium's `--virtual-time-budget` waits for
+// the page to go quiet, and a CSS animation that loops forever means it never
+// does -- the screenshot request just hangs until it is killed. The app already
+// has a supported way to switch animations off, so the harness uses it rather
+// than stripping animations out of the page.
+const still = `<script>
+  if (location.search.includes("still")) {
+    document.addEventListener("DOMContentLoaded", () => {
+      document.documentElement.dataset.animations = "off";
+    });
+  }
+</script>`;
+
 const html = readFileSync(join(DIST, "index.html"), "utf8");
-writeFileSync(join(DIST, "demo.html"), html.replace("<body>", `<body>\n${script}`));
+writeFileSync(
+  join(DIST, "demo.html"),
+  html.replace("<body>", `<body>\n${still}\n${script}`),
+);
 
 console.log(`wrote dist/demo.html`);
-console.log("serve dist/ and open /demo.html");
+console.log("serve dist/ and open /demo.html  (add ?still for screenshots)");

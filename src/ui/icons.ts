@@ -95,13 +95,17 @@ export const icons = {
   search: (s?: number) =>
     icon(["M7 12.2A5.2 5.2 0 1 0 7 1.8a5.2 5.2 0 0 0 0 10.4z", "M10.8 10.8 14 14"], { size: s }),
 
+  // Source control: a branch topology. The previous version drew to x=16.4 in a
+  // 0 0 16 16 viewBox, so the outer arc was clipped and the icon rendered as a
+  // stray squiggle.
   scm: (s?: number) =>
     icon(
       [
-        "M4.4 3.2v9.6",
-        "M4.4 6.1h6.1a1.7 1.7 0 0 1 0 3.4H4.4",
-        "M11.6 12.8 14 10.4l2.4 2.4",
-        "M2.4 12.8h4",
+        "M3.5 4.2a1.5 1.5 0 1 0 3 0a1.5 1.5 0 1 0-3 0",
+        "M3.5 11.8a1.5 1.5 0 1 0 3 0a1.5 1.5 0 1 0-3 0",
+        "M10 8a1.5 1.5 0 1 0 3 0a1.5 1.5 0 1 0-3 0",
+        "M5 5.7v4.6",
+        "M5 8h5",
       ],
       { size: s },
     ),
@@ -143,7 +147,19 @@ export const icons = {
       { size: s },
     ),
 
+  // A notebook: a spine with a folded corner and three rules.
+  notepad: (s?: number) =>
+    icon(
+      [
+        "M3.4 2.6h6.2L13 6v7.4H3.4Z",
+        "M9.6 2.6V6H13",
+        "M5.6 8.4h4.8",
+        "M5.6 10.6h4.8",
+      ],
+      { size: s },
+    ),
   chevronRight: (s?: number) => icon(["M6 3.4 10.6 8 6 12.6"], { size: s }),
+  chevronLeft: (s?: number) => icon(["M10 3.4 5.4 8 10 12.6"], { size: s }),
   chevronDown: (s?: number) => icon(["M3.4 6 8 10.6 12.6 6"], { size: s }),
   close: (s?: number) => icon(["M3.8 3.8 12.2 12.2", "M12.2 3.8 3.8 12.2"], { size: s }),
   check: (s?: number) => icon(["M3 8.4 6.4 11.8 13 4.6"], { size: s }),

@@ -414,11 +414,55 @@ if (cmView?.dispatch) {
   check("tab is clean after save", !$(".tab").classList.contains("is-dirty"));
 }
 
+group("title bar");
+check("title bar is present", !!$(".title-bar"));
+check("it is a full-width band above the columns", (() => {
+  const bar = $(".title-bar"), body = $(".shell-body");
+  return bar && body && bar.parentElement === body.parentElement && bar !== body;
+})());
+check("back and forward chevrons", $$(".title-nav").length === 2);
+check("breadcrumb starts at the workspace root", text($(".title-crumbs")).includes("demo"));
+check("model capsule is present", !!$(".title-model"));
+check("connection dot is present", !!$(".title-cloud"));
+check("account avatar is present", !!$(".title-avatar"));
+check("account avatar is 24px round", (() => {
+  const a = $(".title-avatar");
+  return !!a && a.className.includes("title-avatar");
+})());
+// The activity dock grew a Cursor-specific middle group.
+const actLabels = $a(".activity-item").map((b) => b.getAttribute("aria-label"));
+check("activity dock has the three groups", actLabels.length === 9, actLabels.join(" | "));
+check("Notepads and Features are present",
+  actLabels.includes("Notepads") && actLabels.includes("Features"));
+
 group("Ducky AI panel");
 click(panelFor("Ducky AI"));
 await settle(250);
 check("AI panel is visible", !$(".ai-panel").classList.contains("is-hidden") && !!$(".ai-composer"));
-check("Chat/Agent toggle present", !!$(".ai-mode-toggle"));
+// The header carries Chat/Composer; the agent switch lives in the composer,
+// because it changes what the model may do rather than which view is shown.
+const segLabels = $a(".ai-seg-btn").map(text);
+check("header has Chat/Composer segments", segLabels.join("/") === "Chat/Composer",
+  segLabels.join("/") || "none");
+check("agent switch lives in the composer", !!$(".ai-composer-wrap .ai-agent"));
+check("agent switch is off by default", !$(".ai-composer-wrap")?.classList.contains("is-agent"));
+
+// Toggling agent must repaint the composer, not just flip a class on a control:
+// the whole capsule changes border, because that is what the user notices.
+click($(".ai-agent"));
+await settle(200);
+check("clicking Agent changes the composer", !!$(".ai-composer-wrap")?.classList.contains("is-agent"));
+click($(".ai-agent"));
+await settle(150);
+check("clicking Agent again reverts it", !$(".ai-composer-wrap")?.classList.contains("is-agent"));
+
+// Composer view is a real selection, not a decoration.
+click($a(".ai-seg-btn")[1]);
+await settle(150);
+check("Composer segment selects", $a(".ai-seg-btn")[1]?.classList.contains("is-active"));
+check("Chat segment deselects", !$a(".ai-seg-btn")[0]?.classList.contains("is-active"));
+click($a(".ai-seg-btn")[0]);
+await settle(150);
 check("Context indicator present", !!$(".ai-context-chip"));
 check("explorer stays open alongside AI", !$(".sidebar").classList.contains("is-hidden"));
 click(panelFor("Ducky AI"));

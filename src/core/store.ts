@@ -134,7 +134,10 @@ export interface State {
 
   chat: ChatEntry[];
   chatDraft: string;
+  /** Agent mode: the model may propose edits and commands. */
   agentMode: boolean;
+  /** Composer view, as opposed to plain chat. */
+  composerMode: boolean;
   chatStreaming: boolean;
   chatHistory: { role: "user" | "assistant" | "context"; content: string }[];
 
@@ -222,6 +225,7 @@ class Store {
     chat: [],
     chatDraft: "",
     agentMode: false,
+    composerMode: false,
     chatStreaming: false,
     chatHistory: [],
 

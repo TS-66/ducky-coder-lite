@@ -74,20 +74,31 @@ function build(host: HTMLElement): void {
         "div",
         { class: "ai-toolbar" },
         h(
-          "button",
-          {
-            class: "ai-mode-toggle",
-            title: "Agent mode lets Ducky AI propose file changes and commands. Every change still needs your approval.",
-            onClick: () => {
-              store.update((st) => {
-                st.agentMode = !st.agentMode;
-              });
-              renderModeToggle();
-            },
-          },
-          h("span", { class: "ai-mode-label" }, "Chat"),
-          h("span", { class: "ai-mode-slider" }),
-          h("span", { class: "ai-mode-label" }, "Agent"),
+          "div",
+          { class: "ai-seg", role: "tablist", "aria-label": "Ducky AI mode" },
+          ...(["chat", "composer"] as const).map((mode) =>
+            h(
+              "button",
+              {
+                class: "ai-seg-btn",
+                role: "tab",
+                title:
+                  mode === "chat"
+                    ? "Chat: ask questions about your code"
+                    : "Composer: make changes across several files",
+                onClick: () => {
+                  // Composer is a view, not a capability -- it is the same
+                  // conversation with the proposal surface open. Chat is the
+                  // default because it is what most turns actually are.
+                  store.update((st) => {
+                    st.composerMode = mode === "composer";
+                  });
+                  renderModeToggle();
+                },
+              },
+              mode === "chat" ? "Chat" : "Composer",
+            ),
+          ),
         ),
         h(
           "div",
@@ -121,6 +132,25 @@ function build(host: HTMLElement): void {
         h(
           "div",
           { class: "ai-composer-actions" },
+          // Agent lives here rather than in the header: it changes what the
+          // model is *allowed to do*, which is a property of the request being
+          // composed, not of which view you are looking at.
+          h(
+            "button",
+            {
+              class: "ai-agent",
+              title: "Agent mode. Ducky AI may propose file changes and commands; every one still needs your approval.",
+              onClick: () => {
+                store.update((st) => {
+                  st.agentMode = !st.agentMode;
+                });
+                renderModeToggle();
+              },
+            },
+            h("span", { class: "ai-agent-track" }, h("span", { class: "ai-agent-knob" })),
+            h("span", { class: "ai-agent-label" }, "Agent"),
+          ),
+          h("span", { class: "ai-actions-spacer" }),
           h(
             "span",
             { class: "ai-hint" },
@@ -175,10 +205,27 @@ function autoGrow(el: HTMLTextAreaElement): void {
   el.style.height = `${Math.min(220, el.scrollHeight)}px`;
 }
 
+/**
+ * Reflect agent mode and the Chat/Composer selection in the DOM.
+ *
+ * Agent mode is a class on the *composer*, not a class on a control: the whole
+ * input capsule changes appearance, because the thing the user needs to notice
+ * is not the switch but the box the model will answer into.
+ */
 function renderModeToggle(): void {
-  const toggle = document.querySelector(".ai-mode-toggle");
-  if (!toggle) return;
-  toggle.classList.toggle("is-agent", store.state.agentMode);
+  const wrap = document.querySelector(".ai-composer-wrap");
+  wrap?.classList.toggle("is-agent", store.state.agentMode);
+
+  const agent = document.querySelector(".ai-agent");
+  agent?.classList.toggle("is-on", store.state.agentMode);
+
+  const composer = document.querySelector(".ai-seg-btn:nth-child(2)");
+  const chat = document.querySelector(".ai-seg-btn:nth-child(1)");
+  const inComposer = store.state.composerMode;
+  composer?.setAttribute("aria-selected", String(inComposer));
+  chat?.setAttribute("aria-selected", String(!inComposer));
+  composer?.classList.toggle("is-active", inComposer);
+  chat?.classList.toggle("is-active", !inComposer);
 }
 
 // ---------------------------------------------------------------------------
