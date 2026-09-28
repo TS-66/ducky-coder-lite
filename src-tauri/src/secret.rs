@@ -184,12 +184,15 @@ pub fn redact(input: &str) -> String {
         }
     }
 
+    // Everything after the last marker. Without this the function returns only
+    // the text preceding a marker, so any input containing no marker at all --
+    // which is nearly all of them -- came back empty.
+    out.push_str(rest);
+
     // 2. Bare high-entropy tokens: common provider key prefixes, and anything
     //    that looks like `sk-`/`ghp_`/`gho_`/long hex runs.
     let mut out2 = String::new();
-    let mut in_token = false;
-    for word in out.split_inclusive(|c: char| !c.is_ascii_alphanumeric() && c != '-' && c != '_' && c != '.' && c != '/')
-    {
+    for word in out.split_inclusive(is_token_break) {
         let trimmed = word.trim();
         let looks_secret = trimmed.len() >= 20
             && (trimmed.starts_with("sk-")
@@ -200,16 +203,27 @@ pub fn redact(input: &str) -> String {
                 || trimmed.starts_with("xai-")
                 || (trimmed.chars().all(|c| c.is_ascii_alphanumeric()) && trimmed.len() >= 40));
         if looks_secret {
+            // `split_inclusive` hands over the separator along with the token, so
+            // it has to be re-emitted or the surrounding words run together:
+            // "before <key> after" must not become "before ***redacted***after".
+            out2.push_str(&word[..word.len() - word.trim_start().len()]);
             out2.push_str("***redacted***");
-            in_token = true;
+            out2.push_str(&word[word.trim_end().len()..]);
         } else {
-            let _ = in_token;
-            in_token = false;
             out2.push_str(word);
         }
     }
 
     out2
+}
+
+/// True for the characters that end a token.
+///
+/// The set is deliberately narrow: `.`, `/`, `-` and `_` are kept because real
+/// identifiers and file paths contain them, and splitting on them would let a
+/// secret be smuggled through as separate fragments.
+fn is_token_break(c: char) -> bool {
+    !(c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.' || c == '/')
 }
 
 #[cfg(test)]
@@ -230,6 +244,33 @@ mod tests {
     }
 
     #[test]
+    fn ordinary_prose_and_code_survive_intact() {
+        // The two cases that matter most in production: an AI reply and the
+        // output of a shell command both pass through here, and both are far
+        // more text than a token. A redactor that eats them breaks the app in a
+        // way that looks like "the model returned nothing".
+        let reply = "Here is the change: the loop should break once `i` exceeds \
+                     `buf.len()`, otherwise it reads past the end.";
+        assert_eq!(redact(reply), reply);
+
+        let output = "total 12\ndrwxr-xr-x  4 user user 4096 Jan  1 12:00 src\n\
+                      -rw-r--r--  1 user user  220 Jan  1 12:00 README.md";
+        assert_eq!(redact(output), output);
+
+        // Trailing text after a marker must be kept, not just what precedes it.
+        let with_key = "before sk-proj-AAAABBBBCCCCDDDDEEEEFFFF0123 after";
+        let r = redact(with_key);
+        assert!(!r.contains("AAAABBBBCCCC"), "{r}");
+        assert!(r.starts_with("before "), "{r}");
+        assert!(r.ends_with(" after"), "{r}");
+    }
+
+    #[test]
+    fn empty_input_is_empty_output() {
+        assert_eq!(redact(""), "");
+    }
+
+    #[test]
     fn keeps_ordinary_text() {
         let s = redact("could not resolve host api.example.com for request 42");
         assert_eq!(s, "could not resolve host api.example.com for request 42");
@@ -237,7 +278,10 @@ mod tests {
 
     #[test]
     fn secrets_are_not_readable_back() {
-        let dir = std::env::temp_dir().join(format!("ducky-secret-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("ducky-secret-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id(),
+        ));
         let store = SecretStore::load(&dir).unwrap();
         store.set("openai", "sk-topsecret-value-123456").unwrap();
         // get() is only used by the transport, but the UI path is status().

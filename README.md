@@ -191,6 +191,32 @@ CARGO_BUILD_JOBS=1 CARGO_PROFILE_DEV_DEBUG=0 cargo check --lib
 **Do not run `npm run tauri build` with the default parallelism on a 2 GB
 machine.** That is the command that will get the process OOM-killed.
 
+### Checking that it works
+
+```bash
+./scripts/verify.sh            # everything
+./scripts/verify.sh frontend   # skip the slow Rust half
+```
+
+`verify.sh` runs the type check, the bundle, the boot smoke test, the
+interaction tests, and the Rust compile plus unit tests — then prints a pass/fail
+count. Logs land in `.verify/`.
+
+It carries a **memory watchdog**: a background poll of `MemAvailable` kills the
+running stage if free memory drops below 450 MB. The build gets slower rather
+than taking the desktop with it, which is the trade this project is built around.
+
+Two things about the tests are worth knowing:
+
+- `scripts/interact.mjs` drives the real bundle in a DOM: it clicks the activity
+  bar, expands folders, opens and switches files, edits through genuine
+  CodeMirror transactions, saves, opens the command palette, and toggles panels.
+  It found four bugs that rendering alone could not — including a command
+  palette that was always empty.
+- `src/editor/editor.ts` exposes one non-enumerable property on the editor's DOM
+  node so the tests can dispatch real editor transactions. Without it, "type
+  text, tab goes dirty, Ctrl+S writes" cannot be tested at all.
+
 ---
 
 ## Configuring Ducky AI
@@ -244,6 +270,12 @@ src-tauri/              backend (Rust)
   src/config.rs         settings
   src/commands.rs       the Tauri command surface
 docs/ARCHITECTURE.md    why the design is shaped this way
+scripts/                build, verification and test tooling
+  verify.sh             every check, under a memory watchdog
+  build-lowmem.sh       single-job cargo wrapper
+  interact.mjs          interaction tests against the real bundle
+  smoke.mjs             boot smoke test
+  generate-icons.mjs    draws the app icons from an SDF description
 ```
 
 See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the reasoning behind the

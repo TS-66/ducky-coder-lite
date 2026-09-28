@@ -204,13 +204,17 @@ pub fn status(root: &Path) -> RepoStatus {
             parse_branch_line(field, &mut status);
             continue;
         }
-        if field.len() < 3 {
+        // Porcelain v1 is `XY PATH`: two status characters, then a space, then
+        // the path. Starting the path at 2 left the separator attached, so every
+        // entry in the SCM panel was named " a.txt" and could not be staged,
+        // diffed, or discarded.
+        if field.len() < 4 {
             continue;
         }
         let bytes = field.as_bytes();
         let index_code = bytes[0] as char;
         let worktree_code = bytes[1] as char;
-        let path = field[2..].to_string();
+        let path = field[3..].to_string();
 
         if index_code == 'R' || index_code == 'C' {
             // Renames are "XY <new>\0<old>" — the old path is the next field.
@@ -329,7 +333,7 @@ pub fn diff(root: &Path, path: &str, staged: bool) -> DuckyResult<DiffPayload> {
             let full = root.join(p);
             if full.exists() {
                 // Treat as new file: `git diff --no-index` against /dev/null.
-                let mut args: Vec<&str> =
+                let args: Vec<&str> =
                     vec!["diff", "--no-color", "--no-ext-diff", "--no-index", "/dev/null", path];
                 if let Ok(o) = run(root, &args) {
                     payload.patch = o.stdout;
@@ -550,7 +554,10 @@ mod tests {
     use super::*;
 
     fn repo() -> std::path::PathBuf {
-        let dir = std::env::temp_dir().join(format!("ducky-git-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("ducky-git-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id(),
+        ));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         run(&dir, &["init", "-q"]).unwrap();
@@ -575,8 +582,20 @@ mod tests {
         let s = status(&dir);
         assert!(s.is_repo, "{s:?}");
         assert!(s.branch.is_some());
-        assert!(s.entries.iter().any(|e| e.path == "a.txt" && e.status == FileStatus::Modified));
-        assert!(s.entries.iter().any(|e| e.path == "new.txt" && e.status == FileStatus::Untracked));
+        assert!(
+            s.entries.iter().any(|e| e.path == "a.txt" && e.status == FileStatus::Modified),
+            "a.txt should be Modified; got {s:?}"
+        );
+        // The SCM panel passes these paths straight back to git, so a stray
+        // leading space here is not cosmetic: every action on the file fails.
+        assert!(
+            s.entries.iter().all(|e| e.path == e.path.trim()),
+            "paths must not carry the porcelain separator: {s:?}"
+        );
+        assert!(
+            s.entries.iter().any(|e| e.path == "new.txt" && e.status == FileStatus::Untracked),
+            "new.txt should be Untracked; got {s:?}"
+        );
 
         let d = diff(&dir, "a.txt", false).unwrap();
         assert!(d.patch.contains("-hello"), "{}", d.patch);
@@ -595,7 +614,10 @@ mod tests {
 
     #[test]
     fn non_repo_is_not_an_error() {
-        let dir = std::env::temp_dir().join(format!("ducky-norepo-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("ducky-norepo-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id(),
+        ));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         let s = status(&dir);

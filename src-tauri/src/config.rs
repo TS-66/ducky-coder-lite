@@ -481,7 +481,10 @@ mod tests {
 
     #[test]
     fn settings_roundtrip_without_loss() {
-        let dir = std::env::temp_dir().join(format!("ducky-settings-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("ducky-settings-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id(),
+        ));
         let _ = std::fs::remove_dir_all(&dir);
         let store = SettingsStore::load(&dir).unwrap();
         store
@@ -499,7 +502,11 @@ mod tests {
 
     #[test]
     fn corrupt_settings_fall_back_to_defaults() {
-        let dir = std::env::temp_dir().join(format!("ducky-bad-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!(
+            "ducky-bad-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id(),
+        ));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(dir.join("settings.json"), "{not json at all").unwrap();

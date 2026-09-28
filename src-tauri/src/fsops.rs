@@ -545,7 +545,10 @@ mod tests {
     use super::*;
 
     fn temp_ws() -> (Workspace, PathBuf) {
-        let dir = std::env::temp_dir().join(format!("ducky-fs-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("ducky-fs-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id(),
+        ));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(dir.join("src")).unwrap();
         std::fs::write(dir.join("src/main.rs"), "fn main() {}").unwrap();
@@ -595,7 +598,10 @@ mod tests {
 
     #[test]
     fn large_files_are_capped() {
-        let dir = std::env::temp_dir().join(format!("ducky-big-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("ducky-big-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id(),
+        ));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         let big = "x".repeat(50_000);

@@ -135,6 +135,19 @@ pub struct ContextBundle {
     bodies: Vec<ContextFileWithBody>,
 }
 
+impl RetrievedContext {
+    /// The "nothing was retrieved" value. Distinct from `default()` in intent:
+    /// this is what a search that matched nothing looks like, and callers use
+    /// it to tell "no context" apart from "context retrieval was skipped".
+    pub fn empty() -> Self {
+        Self {
+            files: Vec::new(),
+            total_tokens: 0,
+            truncated: false,
+        }
+    }
+}
+
 impl ContextBundle {
     pub fn render(&self) -> String {
         let mut out = String::new();
@@ -740,7 +753,6 @@ impl AiClient {
                 redact(&text.chars().take(600).collect::<String>())
             )));
         }
-        let mut resp = resp;
         let body = resp
             .text()
             .await

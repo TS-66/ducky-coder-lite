@@ -87,6 +87,35 @@ pub struct SearchRequest {
     pub want_files: bool,
 }
 
+/// Compile ignore globs into a single matcher.
+///
+/// Returns `None` when the list is empty, so the common case costs no match at
+/// all. An unparseable glob is skipped rather than failing the search: a bad
+/// pattern in settings should not make the search pane useless.
+fn compile_globs(globs: &[String]) -> Option<globset::GlobSet> {
+    if globs.is_empty() {
+        return None;
+    }
+    let mut builder = globset::GlobSetBuilder::new();
+    let mut any = false;
+    for pattern in globs {
+        if pattern.is_empty() {
+            continue;
+        }
+        match globset::Glob::new(pattern) {
+            Ok(g) => {
+                builder.add(g);
+                any = true;
+            }
+            Err(_) => continue,
+        }
+    }
+    if !any {
+        return None;
+    }
+    builder.build().ok()
+}
+
 /// State shared by every search worker thread.
 struct SearchShared {
     sink: parking_lot::Mutex<Vec<SearchMatch>>,
@@ -98,6 +127,7 @@ struct SearchShared {
     root: String,
     max_results: usize,
     max_file_bytes: u64,
+    exclude: Option<globset::GlobSet>,
 }
 
 pub struct SearchOutcome {
@@ -133,11 +163,10 @@ pub fn search_content(req: &SearchRequest, cancel: &SearchCancel) -> DuckyResult
         .max_depth(Some(24))
         .threads(2);
 
-    for glob in &req.exclude_globs {
-        if !glob.is_empty() {
-            builder.add_custom_ignore_filename(glob);
-        }
-    }
+    // Exclusions are applied by the visitor against the compiled `GlobSet` in
+    // `SearchShared`, not here: `add_custom_ignore_filename` matches a *literal*
+    // filename, so a glob like `**/node_modules/**` never matched anything and
+    // the exclusion was silently inert.
 
     // `ignore` calls its worker factory once per thread, and each returned
     // visitor must own whatever it touches -- a closure that merely borrowed a
@@ -154,6 +183,7 @@ pub fn search_content(req: &SearchRequest, cancel: &SearchCancel) -> DuckyResult
         root: req.root.clone(),
         max_results: req.max_results,
         max_file_bytes: req.max_file_bytes,
+        exclude: compile_globs(&req.exclude_globs),
     });
 
     builder.build_parallel().run(|| {
@@ -175,6 +205,11 @@ pub fn search_content(req: &SearchRequest, cancel: &SearchCancel) -> DuckyResult
             let path = entry.path();
             if let Some(re) = &sh.include {
                 if !re.is_match(&path.to_string_lossy()) {
+                    return ignore::WalkState::Continue;
+                }
+            }
+            if let Some(set) = &sh.exclude {
+                if set.is_match(path) {
                     return ignore::WalkState::Continue;
                 }
             }
@@ -469,11 +504,10 @@ pub fn find_files(
         .follow_links(false)
         .max_depth(Some(24))
         .threads(2);
-    for glob in exclude_globs {
-        if !glob.is_empty() {
-            builder.add_custom_ignore_filename(glob);
-        }
-    }
+    // Exclusions are applied by the visitor against a compiled `GlobSet`, not
+    // handed to `ignore` as custom ignore filenames: those match a *literal*
+    // filename, so a glob like `**\/node_modules/**` never matched anything and
+    // the exclusion was silently inert.
     let mut excluder: Option<globset::GlobSet> = None;
     for glob in exclude_globs {
         if let Ok(g) = globset::Glob::new(glob) {
@@ -631,7 +665,10 @@ mod tests {
     use super::*;
 
     fn fixture() -> String {
-        let dir = std::env::temp_dir().join(format!("ducky-search-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("ducky-search-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id(),
+        ));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(dir.join("src")).unwrap();
         std::fs::create_dir_all(dir.join("node_modules")).unwrap();

@@ -26,7 +26,7 @@ use tauri::Emitter;
 use crate::ai::{self, CancelToken, ChatMessage, StreamEvent};
 use crate::config::{AiProviderConfig, Settings};
 use crate::error::{DuckyError, DuckyResult};
-use crate::fsops::{self, EntryKind, Workspace};
+use crate::fsops::{self, EntryKind};
 use crate::git;
 use crate::meminfo;
 use crate::pty::{self, CommandResult, PtyData, PtyEmitter, PtyExit};
@@ -49,14 +49,6 @@ fn root_or_err(state: &State<'_, Arc<AppState>>) -> DuckyResult<std::path::PathB
         .root()
         .map(|p| p.to_path_buf())
         .ok_or_else(|| DuckyError::InvalidPath("no folder is open".into()))
-}
-
-/// The open workspace root, or `""`.
-///
-/// `git_status` and `app_info` need to report a *state* ("not a repository")
-/// rather than raise, so they use this instead of [`root_or_err`].
-fn root_or_empty(state: &State<'_, Arc<AppState>>) -> Option<String> {
-    state.workspace.read().root_str()
 }
 
 /// Line endings actually used in a file, so the editor can preserve them.
@@ -803,8 +795,17 @@ pub async fn ai_retrieve_context(
     .map_err(|e| DuckyError::Other(format!("context task failed: {e}")))?
 }
 
-/// One-shot, non-streaming completion: autocomplete, explain, and the other
-/// single-shot quick actions all land here.
+/// One-shot, non-streaming completion.
+///
+/// This is the single path behind every inline AI action: autocomplete, the
+/// quick actions, the "fix this error" prompt, and "suggest a command".
+///
+/// The contract matters and is easy to get wrong. `request` is a *unique id*
+/// (`cm:...`, `inline:...`, `cmd:...`, `fix:...`) used only to route a cancel;
+/// the caller has already composed the entire prompt into `instruction`,
+/// including the language and the surrounding code. So the backend must not
+/// build a prompt of its own — doing so would either discard what the caller
+/// wrote or, worse, substitute the request id for it.
 #[tauri::command]
 pub async fn ai_complete_task(
     state: State<'_, Arc<AppState>>,
@@ -820,29 +821,12 @@ pub async fn ai_complete_task(
         provider.model = provider.fast_model.clone();
     }
 
-    let user = match request.as_str() {
-        "autocomplete" => {
-            let lang = file_path
-                .as_deref()
-                .and_then(|p| {
-                    p.rsplit('/')
-                        .next()
-                        .map(fsops::language_for)
-                })
-                .unwrap_or_default();
-            format!("{}\n\n{selection}", ai::autocomplete_prompt(&lang))
-        }
-        "explain" => format!("Explain this code:\n\n{selection}"),
-        "fix" => format!("Find and fix bugs in this code:\n\n{selection}"),
-        "refactor" => format!("Refactor this code for clarity:\n\n{selection}"),
-        "tests" => format!("Write tests for this code:\n\n{selection}"),
-        "docs" => format!("Document this code:\n\n{selection}"),
-        "optimize" => format!("Make this faster:\n\n{selection}"),
-        "command" => format!(
-            "Suggest one shell command that would help with this. Reply with the command \
-             only, no prose:\n\n{selection}"
-        ),
-        other => format!("{other}\n\n{selection}"),
+    // The caller normally folds the selection into the instruction already. Only
+    // append it when it is genuinely missing, so no context is sent twice.
+    let user = if selection.trim().is_empty() || instruction.contains(&selection) {
+        instruction
+    } else {
+        format!("{instruction}\n\n```\n{selection}\n```")
     };
 
     // Scoped: the read guard is not `Send`, so it must not be alive at the
@@ -854,18 +838,23 @@ pub async fn ai_complete_task(
     let secrets = state.secrets.clone();
     let token = CancelToken::new();
     let max = provider.max_output_tokens;
-    let id = format!("task-{request}");
 
-    // The quick actions are fire-and-forget from the UI's point of view, but the
-    // token still has to be registered so "Cancel" can reach it.
-    state.ai_cancel.lock().insert(id.clone(), token.clone());
+    // Registered so the frontend's Cancel button can reach this request by id.
+    state.ai_cancel.lock().insert(request.clone(), token.clone());
 
     let result = state
         .ai
         .complete(&provider, &secrets, &system, &user, max, &token)
         .await;
 
-    state.ai_cancel.lock().remove(&id);
+    // Removed unconditionally: a failure must not leave a stale cancel entry
+    // behind, or the map would grow for the life of the process.
+    state.ai_cancel.lock().remove(&request);
+
+    // `file_path` is only advisory here. The caller states the language in the
+    // instruction; the backend only uses it to keep the request identifiable in
+    // logs, so it is deliberately not read.
+    let _ = file_path;
     result
 }
 
@@ -890,10 +879,9 @@ pub async fn ai_chat(
     // The read guard is not `Send`, so it is scoped into a block: the compiler
     // can then prove it is gone before the first `.await`, which is what keeps
     // this command's future `Send`.
-    let (system, context_block, context_meta) = {
+    let (system, context_block) = {
         let ws = state.workspace.read();
         let mut context_block = String::new();
-        let mut context_meta = ai::RetrievedContext::default();
         if settings.ai.auto_context && ws.root().is_some() {
             if let Ok(bundle) = ai::retrieve_context(
                 &ws,
@@ -906,13 +894,11 @@ pub async fn ai_chat(
                 &settings.search,
             ) {
                 context_block = bundle.render();
-                context_meta = bundle.meta;
             }
         }
         let system = ai::system_prompt(&ws, !context_block.is_empty(), agent_mode);
-        (system, context_block, context_meta)
+        (system, context_block)
     };
-    let _ = context_meta;
 
     // Build the message list. The context block is inserted as its own
     // `context` role so the UI can show exactly what the model was shown.
@@ -941,7 +927,7 @@ pub async fn ai_chat(
     // assembled text can be read once the stream finishes.
     let for_callback = Arc::clone(&accumulated);
 
-    let result = AiClientStream::run(
+    let result = run_ai_stream(
         state.ai.clone(),
         provider,
         secrets,
@@ -956,11 +942,12 @@ pub async fn ai_chat(
     result
 }
 
-/// The stream driver, split out so `ai_chat` stays a thin command.
+/// Drive one streaming completion, forwarding tokens to the UI as they arrive.
 ///
-/// Streaming lives in a struct rather than inline because the closure handed to
-/// `stream_chat` must be `Send` and must not capture the `State` guard.
-struct AiClientStream {
+/// This lives outside `ai_chat` because the closure `stream_chat` takes must be
+/// `Send` and must not capture the `State` guard; a free function takes its
+/// inputs by value and the guard stays behind in the caller.
+async fn run_ai_stream(
     client: crate::ai::AiClient,
     provider: AiProviderConfig,
     secrets: crate::secret::SecretStore,
@@ -968,51 +955,39 @@ struct AiClientStream {
     token: CancelToken,
     accumulated: Arc<parking_lot::Mutex<String>>,
     app: AppHandle,
-}
-
-impl AiClientStream {
-    async fn run(
-        client: crate::ai::AiClient,
-        provider: AiProviderConfig,
-        secrets: crate::secret::SecretStore,
-        messages: Vec<ChatMessage>,
-        token: CancelToken,
-        accumulated: Arc<parking_lot::Mutex<String>>,
-        app: AppHandle,
-    ) -> DuckyResult<String> {
-        let for_callback = accumulated.clone();
-        client
-            .stream_chat(&provider, &secrets, &messages, &token, move |event| {
-                match event {
-                    StreamEvent::Start { request_id } => {
-                        let _ = app.emit(
-                            "ai://start",
-                            serde_json::json!({ "requestId": request_id }),
-                        );
-                    }
-                    StreamEvent::Delta { text } => {
-                        for_callback.lock().push_str(&text);
-                        let _ = app.emit("ai://delta", serde_json::json!({ "text": text }));
-                    }
-                    StreamEvent::Done {
-                        finish_reason,
-                        cancelled,
-                    } => {
-                        let _ = app.emit(
-                            "ai://done",
-                            serde_json::json!({ "finishReason": finish_reason, "cancelled": cancelled }),
-                        );
-                    }
-                    StreamEvent::Error { message } => {
-                        let _ = app.emit("ai://error", serde_json::json!({ "message": message }));
-                    }
+) -> DuckyResult<String> {
+    let for_callback = accumulated.clone();
+    client
+        .stream_chat(&provider, &secrets, &messages, &token, move |event| {
+            match event {
+                StreamEvent::Start { request_id } => {
+                    let _ = app.emit(
+                        "ai://start",
+                        serde_json::json!({ "requestId": request_id }),
+                    );
                 }
-            })
-            .await?;
-        // The guard is bound to a local so it is released before returning.
-        let assembled = accumulated.lock().clone();
-        Ok(crate::secret::redact(&assembled))
-    }
+                StreamEvent::Delta { text } => {
+                    for_callback.lock().push_str(&text);
+                    let _ = app.emit("ai://delta", serde_json::json!({ "text": text }));
+                }
+                StreamEvent::Done {
+                    finish_reason,
+                    cancelled,
+                } => {
+                    let _ = app.emit(
+                        "ai://done",
+                        serde_json::json!({ "finishReason": finish_reason, "cancelled": cancelled }),
+                    );
+                }
+                StreamEvent::Error { message } => {
+                    let _ = app.emit("ai://error", serde_json::json!({ "message": message }));
+                }
+            }
+        })
+        .await?;
+    // The guard is bound to a local so it is released before returning.
+    let assembled = accumulated.lock().clone();
+    Ok(crate::secret::redact(&assembled))
 }
 
 // ---------------------------------------------------------------------------

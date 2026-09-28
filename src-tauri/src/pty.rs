@@ -368,6 +368,13 @@ mod tests {
 
     #[test]
     fn capture_is_capped() {
+        // `run_capture` is async so the blocking work goes to a blocking pool.
+        // `tokio` is built without the `macros` feature to keep the dependency
+        // tree small, so the future is driven by a current-thread runtime built
+        // here rather than by an attribute.
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .expect("a current-thread runtime");
         let cfg = TerminalConfig {
             shell: if cfg!(windows) { "cmd".into() } else { "/bin/sh".into() },
             args: if cfg!(windows) {
@@ -377,7 +384,9 @@ mod tests {
             },
             ..Default::default()
         };
-        let r = run_capture(&cfg.shell, &cfg.args, None, 1024).unwrap();
+        let r = rt
+            .block_on(run_capture(&cfg.shell, &cfg.args, None, 1024))
+            .unwrap();
         assert_eq!(r.code, 0);
         assert!(r.stdout.contains("hello"));
     }
