@@ -31,6 +31,7 @@ export function createTitleBar(opts: {
   onBack: () => void;
   onForward: () => void;
   onOpenModelPicker: () => void;
+  onOpenCommandCenter: () => void;
   onOpenAccount: () => void;
   onOpenIndexingInfo: () => void;
 }): TitleBar {
@@ -52,10 +53,21 @@ export function createTitleBar(opts: {
   );
 
 
-  // --- centre: breadcrumb --------------------------------------------------
+  // --- centre: the command pill -------------------------------------------
 
-  // One element per segment, so the active file can be the only bright part.
-  const crumbs = h("div", { class: "title-crumbs" });
+  // A bordered, rounded, centred field showing the workspace name. It is the
+  // window's single "where am I" control and the entry point to the command
+  // palette, which is why it is a pill with a border rather than plain text.
+  const pill = h(
+    "button",
+    {
+      class: "title-pill",
+      title: "Search files and commands",
+      onClick: () => opts.onOpenCommandCenter(),
+    },
+    h("span", { class: "title-pill-icon" }, icons.search(12)),
+    h("span", { class: "title-pill-text" }, "crypto-price-converter"),
+  );
 
   // --- right: status cluster -----------------------------------------------
 
@@ -87,11 +99,14 @@ export function createTitleBar(opts: {
     h("span", { class: "title-avatar" }, "D"),
   );
 
+  const pillNode = h("span", { class: "title-pill-text" }, "Ducky Coder Lite");
+  pill.replaceChild(pillNode, pill.querySelector(".title-pill-text")!);
+
   const el = h(
     "header",
     { class: "title-bar", role: "banner" },
     h("div", { class: "title-left" }, history),
-    h("div", { class: "title-centre" }, crumbs),
+    h("div", { class: "title-centre" }, pill),
     h("div", { class: "title-right" }, indexStatus, modelCapsule, cloudDot, account),
   );
 
@@ -100,29 +115,11 @@ export function createTitleBar(opts: {
   const render = (state: State): void => {
     const wsName = state.workspace?.name || "";
 
-    // Breadcrumb: the active file's path, one segment per part. The root is
-    // muted and the file itself is bright, so the eye lands on the file.
-    const active = state.tabs.find((t) => t.id === state.activeTabId);
-    const path = active?.path ?? "";
-    const parts = path ? path.split("/").filter(Boolean) : [];
-    const lead = h(
-      "span",
-      { class: "title-crumb is-muted" },
-      icons.folder(12),
-      h("span", null, wsName || "workspace"),
-    );
-    const nodes: HTMLElement[] = [lead];
-    parts.forEach((part, i) => {
-      if (i > 0) nodes.push(h("span", { class: "title-crumb-sep" }, icons.chevronRight(10)));
-      const seg = h("span", { class: "title-crumb" }, part);
-      if (i < parts.length - 1) seg.classList.add("is-muted");
-      nodes.push(seg);
-    });
-    if (parts.length === 0) {
-      nodes.push(h("span", { class: "title-crumb-sep" }, icons.chevronRight(10)));
-      nodes.push(h("span", { class: "title-crumb is-muted" }, "No file open"));
-    }
-    fill(crumbs, ...nodes);
+    // The pill names the workspace, and only the workspace. The file path has
+    // its own row under the tabs, which is where a path belongs: it changes far
+    // more often than the window does.
+    const pillText = wsName || "Ducky Coder Lite";
+    if (pillNode.textContent !== pillText) pillNode.textContent = pillText;
 
     // Indexing. The label reports the real search state rather than animating
     // forever -- a spinner that always spins is a lie about a 2 GB machine.

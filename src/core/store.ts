@@ -122,7 +122,8 @@ export interface State {
   sidebarVisible: boolean;
   panelVisible: boolean;
   aiPanelVisible: boolean;
-  bottomPanel: "terminal" | "problems" | "output" | null;
+  /** The five panel views the reference shows across the bottom drawer. */
+  bottomPanel: "terminal" | "problems" | "output" | "debug" | "ports" | null;
 
   tabs: Tab[];
   activeTabId: string | null;

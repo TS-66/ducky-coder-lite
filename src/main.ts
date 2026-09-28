@@ -37,7 +37,7 @@ import {
 } from "./core/store";
 
 import { createShell, renderShell, renderBottomTabs, renderWelcome } from "./ui/shell";
-import { renderTabs, resetTabSignature } from "./ui/tabs";
+import { renderTabs, renderCrumbs, resetTabSignature } from "./ui/tabs";
 import { renderStatusBar, setCursorPos } from "./ui/statusbar";
 import {
   renderExplorer,
@@ -63,7 +63,12 @@ import {
   outputElement,
 } from "./ui/terminal";
 import { renderSearch, focusSearch, refreshScm, renderScm, renderRun, renderExtensions, renderProblems } from "./ui/panels";
-import { openCommandPalette, openQuickOpen, type Command } from "./ui/palette";
+import {
+  openCommandCenter,
+  openCommandPalette,
+  openQuickOpen,
+  type Command,
+} from "./ui/palette";
 import { openSettings } from "./ui/settings";
 import { openInlineAi, setEditorHost, setFocusTarget, runQuickAction } from "./ui/inline-ai";
 import { openDiff } from "./ui/diff";
@@ -88,10 +93,13 @@ if (!root) throw new Error("#app is missing from index.html");
 // The title bar's own controls. Back/forward walk the tab history the shell
 // already keeps, and each right-hand button opens the surface its indicator
 // describes -- so nothing in the bar is decorative-only.
+// The command centre is a view over the same command list the palette uses, so
+// a shortcut is never in one and missing from the other.
 const shell = createShell(root, {
   onBack: () => historyNav(-1),
   onForward: () => historyNav(1),
   onOpenModelPicker: () => openSettings("ai"),
+  onOpenCommandCenter: () => openCommandCenter(COMMANDS),
   onOpenAccount: () => openSettings("general"),
   onOpenIndexingInfo: () => {
     store.update((st) => {
@@ -203,6 +211,7 @@ const paint = raf(() => {
   renderShell(shell, s);
   shell.titleBar.render(s);
   renderTabs(shell.editorTabs, s);
+  renderCrumbs(shell.editorCrumbs, s);
   renderStatusBar(shell.statusLeft, shell.statusRight, s);
   if (s.bottomPanel) renderBottomTabs(shell, s);
   if (s.settings) applyEditorVars(shell.editorHost, s.settings);
@@ -317,6 +326,41 @@ shell.bottomViews.set("output", (host) => {
         "div",
         { class: "panel-empty-text" },
         "Messages from Ducky Coder Lite's own processes appear here. Nothing is logged to disk, and no workspace content is ever written to a log.",
+      ),
+    ),
+  );
+});
+
+// A tab that renders nothing is worse than no tab: the user clicks it, gets a
+// blank rectangle, and concludes the feature is broken. So both new views say
+// plainly what they would show and what is missing, rather than staying empty.
+shell.bottomViews.set("debug", (host) => {
+  host.textContent = "";
+  host.appendChild(
+    h(
+      "div",
+      { class: "panel-empty" },
+      h("div", { class: "panel-empty-title" }, "Debug Console"),
+      h(
+        "div",
+        { class: "panel-empty-text" },
+        "The debug console evaluates expressions in a running debug session. This build has no debugger attached, so there is nothing to evaluate yet.",
+      ),
+    ),
+  );
+});
+
+shell.bottomViews.set("ports", (host) => {
+  host.textContent = "";
+  host.appendChild(
+    h(
+      "div",
+      { class: "panel-empty" },
+      h("div", { class: "panel-empty-title" }, "Ports"),
+      h(
+        "div",
+        { class: "panel-empty-text" },
+        "Forwarded ports appear here with a link you can click to open them in a browser. Start a terminal server to forward one.",
       ),
     ),
   );

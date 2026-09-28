@@ -3862,3 +3862,94 @@ html[data-animations="off"] .ai-composer-wrap.is-agent {
     background-position: 0 0, 60% 0;
   }
 }
+
+/* ==========================================================================
+   The command centre and the breadcrumb row
+
+   Two different jobs, two different places:
+
+     title bar centre   the command centre -- a bordered, centred field naming
+                        the window, and the way into files and commands
+     under the tabs     the breadcrumb -- the path of the file being edited
+
+   They were merged into one row originally, which made the title bar the
+   busiest element on screen and left the tab strip with no context of its own.
+   ========================================================================== */
+
+.title-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  /* A pill, not plain text: it is a control. The border is what says so. */
+  height: 22px;
+  padding: 0 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 11px;
+  background: var(--bg-raised);
+  color: var(--fg-muted);
+  font-size: var(--fs-xs);
+  font-family: var(--font-ui);
+  cursor: pointer;
+  transition: background 90ms ease, border-color 90ms ease, color 90ms ease;
+}
+
+.title-pill:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-input);
+  color: var(--fg);
+}
+
+.title-pill-icon {
+  display: grid;
+  place-items: center;
+  color: var(--fg-subtle);
+}
+
+.title-pill-text {
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --- Breadcrumb row ------------------------------------------------------- */
+
+.editor-crumbs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 22px;
+  min-height: 22px;
+  padding: 0 10px 0 12px;
+  background: var(--bg-editor);
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: var(--fs-xs);
+  color: var(--fg-subtle);
+  white-space: nowrap;
+  overflow: hidden;
+  user-select: none;
+}
+
+.crumb {
+  color: var(--fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Everything before the file is dimmed so the eye lands on the file name. */
+.crumb.is-muted {
+  color: var(--fg-subtle);
+}
+
+.crumb-sep {
+  display: grid;
+  place-items: center;
+  color: var(--fg-subtle);
+  flex: none;
+  opacity: 0.7;
+}
+
+/* Empty when no file is open, so the row does not hold 22px of nothing. */
+.editor-crumbs:empty {
+  display: none;
+}

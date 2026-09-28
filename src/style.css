@@ -85,12 +85,23 @@
   --git-conflict: #ff6b6b;
   --git-staged: #7ee2ab;
 
-  /* Diff. */
-  --diff-add-bg: rgba(48, 209, 88, 0.1);
-  --diff-add-fg: #30d158;
-  --diff-del-bg: rgba(255, 69, 58, 0.1);
-  --diff-del-fg: #ff453a;
+  /* Diff. The two block colours were sampled from the reference screenshots
+     rather than guessed: a large removed hunk is #511C22 and an added one
+     #1F431F, in both cases the dominant colour of 80%+ of the block.
+
+     They are *desaturated* on purpose. A diff hunk covers a dozen lines of
+     screen; a fully saturated red or green at that size stops reading as
+     "changed" and starts reading as an error. */
+  --diff-add-bg: #1f431f;
+  --diff-add-fg: #7ee2a0;
+  --diff-del-bg: #511c22;
+  --diff-del-fg: #f0a3a3;
   --diff-gutter: #26262b;
+
+  /* The purple the reference uses for the account and remote indicators. Kept
+     distinct from the cyan accent so "you" and "the AI" never look alike. */
+  --brand-purple: #5d53e7;
+  --brand-purple-soft: rgba(93, 83, 231, 0.18);
 
   /* Metrics. These numbers are what make the chrome feel dense and precise
      rather than spacious. */

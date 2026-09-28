@@ -308,6 +308,99 @@ export function openCommandPalette(commands: Command[]): void {
 }
 
 /** Quick Open: fuzzy search over workspace file names. */
+/**
+ * The command centre: the title bar's centred pill.
+ *
+ * One field that answers both "which file" and "which command", because
+ * deciding which of those two a user means is a distraction they should not
+ * have to perform before they have even typed. The reference behaves the same
+ * way, and the `>` prefix is the convention for asking explicitly for
+ * commands.
+ */
+export function openCommandCenter(commands: Command[]): void {
+  const root = store.state.workspace?.root;
+
+  const cmdItems: PaletteItem[] = commands
+    .filter((c) => !c.hidden)
+    .map((c) => ({
+      id: `cmd:${c.id}`,
+      label: c.title,
+      detail: c.category,
+      hint: c.shortcut ? keyCombo(c.shortcut) : undefined,
+      score: 0,
+      run: c.run,
+    }));
+
+  const openItems: PaletteItem[] = store.state.tabs.map((t) => ({
+    id: `open:${t.path}`,
+    label: t.path,
+    detail: "open",
+    score: 0,
+    run: async () => {
+      await openFile(t.path, { preview: true });
+    },
+  }));
+
+  const seed = [...openItems, ...cmdItems];
+
+  buildOverlay("Search files and commands…", () => {});
+  items = [...seed];
+  refresh();
+
+  let generation = 0;
+  const onInput = (): void => {
+    const query = inputEl?.value ?? "";
+    // A `>` prefix is an explicit request for commands only, which is how a user
+    // reaches one whose name collides with a filename.
+    const commandsOnly = query.startsWith(">");
+    const text = commandsOnly ? query.slice(1).trim() : query;
+    const mine = ++generation;
+
+    if (!text) {
+      items = [...seed];
+      refresh();
+      return;
+    }
+
+    // Commands are local, so they filter immediately; files need a walk, so
+    // they land a beat later. Showing the fast half first is what makes the
+    // field feel responsive.
+    const local = (commandsOnly ? cmdItems : seed).filter((it) => {
+      if (!text) return true;
+      const inLabel = fuzzyScore(it.label.toLowerCase(), text.toLowerCase());
+      const inDetail = it.detail ? fuzzyScore(it.detail.toLowerCase(), text.toLowerCase()) * 0.6 : -1;
+      return inLabel >= 0 || inDetail >= 0;
+    });
+    items = [...local];
+    refresh();
+
+    if (commandsOnly || !root) return;
+
+    window.setTimeout(() => {
+      if (mine !== generation) return;
+      void api.quickOpen(text, 40).then((hits) => {
+        if (mine !== generation) return;
+        const extra: PaletteItem[] = hits.map((hit) => ({
+          id: `f:${hit.path}`,
+          label: hit.path,
+          detail: "file",
+          score: 0,
+          run: async () => {
+            await openFile(hit.path, { preview: true });
+          },
+        }));
+        items = [...items, ...extra];
+        refresh();
+      }).catch(() => {
+        /* a failed search leaves the command results in place */
+      });
+    }, 120);
+  };
+
+  inputEl?.addEventListener("input", onInput);
+  onInput();
+}
+
 export async function openQuickOpen(initial = ""): Promise<void> {
   const root = store.state.workspace?.root;
   if (!root) {

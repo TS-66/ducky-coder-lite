@@ -221,3 +221,40 @@ function closeSaved(): void {
 export function resetTabSignature(): void {
   signature = "";
 }
+
+/**
+ * The path of the active file, on its own row under the tab strip.
+ *
+ * Segments are the workspace root, the directories, the file, and finally the
+ * symbol the cursor is inside where the language can supply one. Everything
+ * before the file is dimmed so the eye lands on the file, and the separators
+ * are chevrons rather than slashes to match the reference.
+ */
+export function renderCrumbs(host: HTMLElement, s: State): void {
+  const active = s.tabs.find((t) => t.id === s.activeTabId);
+  const root = s.workspace?.name || "workspace";
+  const parts = (active?.path || "").split("/").filter(Boolean);
+
+  const nodes: HTMLElement[] = [];
+  const push = (node: HTMLElement): void => {
+    if (nodes.length) nodes.push(h("span", { class: "crumb-sep" }, icons.chevronRight(10)));
+    nodes.push(node);
+  };
+
+  push(h("span", { class: "crumb is-muted" }, root));
+  // The file is the last path segment; everything before it is a directory.
+  parts.forEach((part, i) => {
+    const isFile = i === parts.length - 1 && !!active;
+    push(h("span", { class: isFile ? "crumb" : "crumb is-muted" }, part));
+  });
+
+  if (parts.length === 0) {
+    nodes.push(h("span", { class: "crumb is-muted" }, "No file open"));
+  }
+
+  // Avoid a rebuild when nothing changed: this runs on every paint.
+  const sig = nodes.map((n) => n.textContent).join("/");
+  if (host.dataset.crumbSig === sig) return;
+  host.dataset.crumbSig = sig;
+  fill(host, ...nodes);
+}

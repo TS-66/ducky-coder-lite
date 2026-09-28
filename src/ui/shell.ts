@@ -36,6 +36,7 @@ export interface Shell {
   sidebarPanels: Map<PanelId, HTMLElement>;
   sidebarTitle: HTMLElement;
   editorTabs: HTMLElement;
+  editorCrumbs: HTMLElement;
   editorArea: HTMLElement;
   editorHost: HTMLElement;
   aiPanel: HTMLElement;
@@ -70,6 +71,7 @@ export function createShell(
     onBack: () => void;
     onForward: () => void;
     onOpenModelPicker: () => void;
+    onOpenCommandCenter: () => void;
     onOpenAccount: () => void;
     onOpenIndexingInfo: () => void;
   },
@@ -191,12 +193,18 @@ export function createShell(
 
   // --- Editor -------------------------------------------------------------
   const editorTabs = h("div", { class: "tab-strip", role: "tablist" });
+  // The path of the active file gets its own row under the tabs. It changes
+  // every time focus moves between files, so putting it in the title bar made
+  // that bar the busiest element on screen and left the tab strip with no
+  // context of its own.
+  const editorCrumbs = h("div", { class: "editor-crumbs", role: "navigation" });
   const editorHost = h("div", { class: "editor-host" });
   const welcomeHost = h("div", { class: "welcome-host" });
   const editorArea = h(
     "main",
     { class: "editor-area" },
     editorTabs,
+    editorCrumbs,
     h("div", { class: "editor-stack" }, editorHost, welcomeHost),
   );
 
@@ -276,6 +284,7 @@ export function createShell(
     sidebarPanels,
     sidebarTitle,
     editorTabs,
+    editorCrumbs,
     editorArea,
     editorHost,
     aiPanel,
@@ -414,14 +423,18 @@ function renderToasts(shell: Shell, s: State): void {
 
 /** Rebuild the bottom panel's tab strip. */
 export function renderBottomTabs(shell: Shell, s: State): void {
+  // Five views, in the order the reference shows them. Problems carries a count
+  // and the rest do not, because only one of them has something to count.
   const items: { id: NonNullable<State["bottomPanel"]>; label: string; count?: number }[] = [
-    { id: "terminal", label: "TERMINAL" },
     {
       id: "problems",
       label: "PROBLEMS",
       count: s.problems.filter((p) => p.severity === "error").length,
     },
     { id: "output", label: "OUTPUT" },
+    { id: "debug", label: "DEBUG CONSOLE" },
+    { id: "terminal", label: "TERMINAL" },
+    { id: "ports", label: "PORTS" },
   ];
 
   fill(

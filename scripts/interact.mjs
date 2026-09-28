@@ -421,7 +421,36 @@ check("it is a full-width band above the columns", (() => {
   return bar && body && bar.parentElement === body.parentElement && bar !== body;
 })());
 check("back and forward chevrons", $$(".title-nav").length === 2);
-check("breadcrumb starts at the workspace root", text($(".title-crumbs")).includes("demo"));
+// The title bar centre is the command centre; the path lives on its own row
+// under the tabs. Asserting the pill here is what caught them being merged.
+check("command pill is centred in the title bar", (() => {
+  const pill = $(".title-pill"), centre = $(".title-centre");
+  return !!pill && !!centre && centre.contains(pill);
+})());
+// The fixture's workspace is named "demo"; the point is that the pill reports the
+// real name rather than a hard-coded string.
+check("command pill names the workspace", text($(".title-pill-text")) === "demo",
+  text($(".title-pill-text")));
+click($(".title-pill"));
+await settle(350);
+check("the pill opens a palette", !!$(".palette-overlay"));
+check("that palette offers files and commands", (() => {
+  const t = text($(".palette-list"));
+  return /\.rs|\.py/.test(t) && /Edit|File|View/i.test(t);
+})(), text($(".palette-list")).slice(0, 70));
+key("Escape");
+await settle(200);
+
+check("breadcrumb is its own row under the tabs", (() => {
+  const crumbs = $(".editor-crumbs"), tabs = $(".tab-strip"), area = $(".editor-area");
+  return !!crumbs && !!tabs && !!area
+    && area.children[0] === tabs
+    && area.children[1] === crumbs;
+})());
+check("breadcrumb starts at the workspace root", text($(".editor-crumbs")).includes("demo"),
+  text($(".editor-crumbs")));
+check("breadcrumb names the open file", /test_auth\.py|main\.rs/.test(text($(".editor-crumbs"))),
+  text($(".editor-crumbs")));
 check("model capsule is present", !!$(".title-model"));
 check("connection dot is present", !!$(".title-cloud"));
 check("account avatar is present", !!$(".title-avatar"));
@@ -497,8 +526,20 @@ key("`", { ctrlKey: true });
 await settle(400);
 await settle(200);
 check("Ctrl+` shows the bottom panel", !$(".bottom-panel").classList.contains("is-hidden"));
-check("terminal tab strip rendered", $$(".bottom-tab").length >= 3,
-  $a(".bottom-tab").map((b) => text(b)).join(" | "));
+const bottomLabels = $a(".bottom-tab").map((b) => text(b).toUpperCase());
+check("bottom drawer has the five reference views",
+  bottomLabels.join(">") === "PROBLEMS>OUTPUT>DEBUG CONSOLE>TERMINAL>PORTS",
+  bottomLabels.join(" > "));
+// Every tab must render something: a tab that opens a blank rectangle reads as
+// a broken feature rather than an empty one.
+for (const label of ["DEBUG CONSOLE", "PORTS"]) {
+  click($a(".bottom-tab").find((b) => text(b).toUpperCase() === label));
+  await settle(200);
+  check(`${label} explains itself instead of showing nothing`,
+    text($(".bottom-content")).length > 40, `${text($(".bottom-content")).length} chars`);
+}
+click($a(".bottom-tab").find((b) => text(b).toUpperCase() === "TERMINAL"));
+await settle(200);
 key("`", { ctrlKey: true });
 await settle(200);
 check("Ctrl+` hides it again", $(".bottom-panel").classList.contains("is-hidden"));
