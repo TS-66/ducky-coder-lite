@@ -1,0 +1,209 @@
+/* ==========================================================================
+   Ducky Coder Lite — design tokens and base styles
+
+   The visual language is a compact, professional dark developer UI: tight
+   spacing, small type, subtle separators, no decoration that does not carry
+   information. Every value here is chosen to keep the interface legible at a
+   glance on a small, low-DPI screen, which is where this app will usually run.
+   ========================================================================== */
+
+:root {
+  /* Surfaces, darkest to lightest. */
+  --bg-app: #0b0e14;
+  --bg-editor: #0d1117;
+  --bg-sidebar: #0f131b;
+  --bg-panel: #11151d;
+  --bg-raised: #161b24;
+  --bg-hover: #1b212c;
+  --bg-active: #212836;
+  --bg-selected: #1d2735;
+  --bg-input: #0a0d13;
+
+  /* Text. */
+  --fg: #d5dae3;
+  --fg-strong: #f0f3f8;
+  --fg-muted: #8b94a6;
+  --fg-subtle: #626b7d;
+
+  /* Borders. */
+  --border: #1e242f;
+  --border-strong: #2a3240;
+  --border-subtle: #171c25;
+
+  /* Accent: a warm amber-yellow, for the duck. Used sparingly so it reads as
+     brand rather than as "everything is highlighted". */
+  --accent: #e8b339;
+  --accent-dim: #b8892a;
+  --accent-fg: #0b0e14;
+  --accent-soft: rgba(232, 179, 57, 0.12);
+
+  /* Semantic. */
+  --ok: #4ec98a;
+  --warn: #e0b341;
+  --err: #f2606b;
+  --info: #58a6ff;
+  --info-soft: rgba(88, 166, 255, 0.12);
+
+  /* Diff. */
+  --diff-add-bg: rgba(78, 201, 138, 0.12);
+  --diff-add-fg: #7ee2ab;
+  --diff-del-bg: rgba(242, 96, 107, 0.12);
+  --diff-del-fg: #ff8f97;
+
+  /* Metrics. Deliberately tight: this is a dense tool, not a web page. */
+  --h-activity: 44px;
+  --h-tab: 35px;
+  --h-status: 22px;
+  --h-panel-header: 30px;
+  --w-activity: 48px;
+  --w-sidebar: 260px;
+  --w-panel: 220px;
+
+  --radius: 4px;
+  --radius-lg: 6px;
+
+  --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+    "Liberation Mono", monospace;
+
+  --fs-xs: 10.5px;
+  --fs-sm: 11.5px;
+  --fs-md: 12.5px;
+  --fs-lg: 14px;
+
+  --shadow-pop: 0 8px 28px rgba(0, 0, 0, 0.55), 0 0 0 1px var(--border-strong);
+}
+
+/* Low Memory Mode strips everything that costs CPU to composite. Animations
+   are the first thing to go: on an integrated GPU they force the compositor to
+   keep intermediate buffers alive, which is real memory. */
+html[data-low-memory="on"] *,
+html[data-low-memory="on"] *::before,
+html[data-low-memory="on"] *::after {
+  animation: none !important;
+  transition: none !important;
+}
+
+html[data-animations="off"] *,
+html[data-animations="off"] *::before,
+html[data-animations="off"] *::after {
+  animation: none !important;
+  transition: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+* {
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg-app);
+  color: var(--fg);
+  font-family: var(--font-ui);
+  font-size: var(--fs-md);
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  /* Text selection is opt-in per region; a coding UI that selects everything on
+     a stray drag feels broken. */
+  user-select: none;
+  cursor: default;
+}
+
+#app {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+input,
+textarea {
+  user-select: text;
+  font-family: inherit;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #2b3444;
+  border-radius: 6px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3a465a;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Visible focus for keyboard users only. */
+:focus {
+  outline: none;
+}
+:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+}
+
+kbd {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  background: var(--bg-raised);
+  border: 1px solid var(--border-strong);
+  border-bottom-width: 2px;
+  border-radius: 3px;
+  padding: 1px 4px;
+  color: var(--fg-muted);
+  white-space: nowrap;
+}
+
+button {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+code,
+pre,
+.mono {
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+}
+
+/* Screen-reader-only text, used for icon buttons. */
+.sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

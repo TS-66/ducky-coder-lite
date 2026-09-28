@@ -1,0 +1,491 @@
+/**
+ * Interaction tests.
+ *
+ * The smoke test proves the app *renders*. This proves it *responds*: every
+ * assertion below drives the UI the way a user would — clicking the activity
+ * bar, expanding a folder, opening files, switching tabs, typing, saving,
+ * invoking the palette, toggling panels — and checks the resulting DOM.
+ *
+ * It runs the built bundle in a real DOM against the mock backend, so it
+ * exercises the same code path the desktop app does, minus Rust.
+ *
+ *   node scripts/interact.mjs
+ */
+
+import { JSDOM, VirtualConsole } from "jsdom";
+import { readFileSync, readdirSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+const DIST = join(ROOT, "dist");
+const ASSETS = join(DIST, "assets");
+
+// ---------------------------------------------------------------------------
+// Harness
+// ---------------------------------------------------------------------------
+
+const results = [];
+let currentGroup = "";
+
+function group(name) {
+  currentGroup = name;
+  results.push("");
+  results.push(`── ${name}`);
+}
+
+function check(label, condition, detail = "") {
+  results.push(`  [${condition ? "PASS" : "FAIL"}] ${label}${detail ? `  ${detail}` : ""}`);
+  if (!condition) process.exitCode = 1;
+  return condition;
+}
+
+const problems = [];
+const vc = new VirtualConsole();
+for (const level of ["jsdomError", "error"]) {
+  vc.on(level, (...a) => problems.push(`${level}: ${a.map(String).join(" ")}`));
+}
+
+const dom = new JSDOM(readFileSync(join(DIST, "index.html"), "utf8"), {
+  url: "http://localhost/",
+  runScripts: "dangerously",
+  pretendToBeVisual: true,
+  virtualConsole: vc,
+});
+
+const W = dom.window;
+const doc = W.document;
+const $ = (s) => doc.querySelector(s);
+const $$ = (s) => doc.querySelectorAll(s);
+/** NodeList has no array methods; this is the array-returning variant. */
+const $a = (s) => [...doc.querySelectorAll(s)];
+const text = (el) => (el?.textContent ?? "").replace(/\s+/g, " ").trim();
+
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+/** Let the render queue (a microtask + rAF) drain. */
+const settle = async (ms = 90) => { await wait(ms); };
+
+function click(elOrSel, init = {}) {
+  const el = typeof elOrSel === "string" ? $(elOrSel) : elOrSel;
+  if (!el) return false;
+  const ev = new W.MouseEvent("click", { bubbles: true, cancelable: true, button: 0, ...init });
+  el.dispatchEvent(ev);
+  return true;
+}
+
+function key(k, init = {}) {
+  const ev = new W.KeyboardEvent("keydown", {
+    key: k,
+    bubbles: true,
+    cancelable: true,
+    ctrlKey: false, metaKey: false, altKey: false, shiftKey: false,
+    ...init,
+  });
+  // Dispatch once, on the focused element (or body). Dispatching a second time
+  // on `window` would retarget the event and stop resembling real input.
+  (doc.activeElement && doc.activeElement !== doc.body ? doc.activeElement : doc.body)
+    .dispatchEvent(ev);
+  return ev;
+}
+
+function type(text2) {
+  const cm = $(".cm-content");
+  if (!cm) return false;
+  cm.focus?.();
+  // Drive CodeMirror through its own input event path rather than poking the
+  // document, so the editor's transaction pipeline is genuinely exercised.
+  const before = $(".cm-line")?.textContent ?? "";
+  const ev = new W.InputEvent("input", { bubbles: true, data: text2 });
+  cm.dispatchEvent(ev);
+  return before !== undefined;
+}
+
+// ---------------------------------------------------------------------------
+// Mock backend (the same shape the smoke test uses)
+// ---------------------------------------------------------------------------
+
+const SRC_RS = `use std::collections::HashMap;
+
+fn main() {
+    let mut m: HashMap<String, u32> = HashMap::new();
+    m.insert("a".to_string(), 1);
+    println!("{}", m.len());
+}
+`;
+const SRC_PY = `import hashlib
+
+def authenticate(user, password):
+    if not user:
+        raise ValueError("user required")
+    return hashlib.sha256(password.encode()).hexdigest()
+`;
+
+const file = (path, name, language, size) => ({
+  path, name, kind: "file", size, language, isHidden: false,
+  hasFilteredChildren: false, childDirCount: 0, childFileCount: 0,
+});
+const dir = (path, name) => ({
+  path, name, kind: "directory", size: 0, language: "folder", isHidden: false,
+  hasFilteredChildren: false, childDirCount: 0, childFileCount: 0,
+});
+
+const SETTINGS = {
+  version: 1, lastWorkspace: "/demo", recentWorkspaces: [],
+  editor: {
+    fontFamily: "ui-monospace, monospace", fontSize: 13, lineHeight: 1.55,
+    tabSize: 4, insertSpaces: true, wordWrap: false, minimap: false,
+    lineNumbers: true, bracketMatching: true, formatOnSave: false,
+    largeFileBytes: 1500000, hugeFileBytes: 8000000, renderLineLimit: 20000,
+    bracketPairColorization: true,
+  },
+  ai: {
+    provider: {
+      id: "ducky", label: "Ducky AI", kind: "ducky",
+      baseUrl: "https://api.duckycoder.ai/v1", model: "ducky-coder",
+      fastModel: "ducky-coder-fast", hasKey: true, maxContextTokens: 24000,
+      maxOutputTokens: 4096, temperature: 0.2, extraHeaders: {},
+    },
+    autoContext: true, maxContextFiles: 8, maxFileChars: 24000,
+    autocompleteDebounceMs: 350, autocompleteEnabled: true,
+    agentRequiresApproval: true, agentCanRunCommands: true,
+    historyCharBudget: 120000, historyMessageThreshold: 24,
+  },
+  terminal: {
+    shell: "/bin/bash", args: [], cwd: "", scrollbackLines: 750,
+    fontSize: 13, cursorBlink: true, copyOnSelect: false,
+  },
+  search: {
+    excludeGlobs: ["**/node_modules/**"], maxResults: 2000,
+    maxFileBytes: 2000000, caseSensitive: false, useRegex: false, wholeWord: false,
+  },
+  lowMemory: {
+    enabled: true, shedThresholdMb: 256, criticalThresholdMb: 128,
+    suspendInactiveTabs: true, warmTabLimit: 3, maxRenderLines: 12000,
+    suspendLanguageServices: true, pauseBackgroundIndexing: true,
+    maxSearchResults: 500, terminalScrollback: 300, showNotice: true,
+  },
+  showPerformanceIndicator: true, telemetry: false, openRecent: true,
+};
+
+let lastWrite = null;
+
+const HANDLERS = {
+  app_info: () => ({
+    name: "Ducky Coder Lite", tagline: "Code fast. Stay light.", version: "1.0.0",
+    uptimeSeconds: 10, gitAvailable: true, shells: [["bash", "/bin/bash"]],
+    lastWorkspace: "/demo", recentWorkspaces: [],
+    secrets: { present: { ducky: true }, osKeystore: false }, pressure: "normal",
+  }),
+  get_settings: () => SETTINGS,
+  mem_snapshot: () => ({
+    processRssMb: 30, webviewRssMb: 110, appTotalMb: 140, systemUsedMb: 1000,
+    systemTotalMb: 2048, systemAvailableMb: 1048, swapUsedMb: 0,
+    availableRatio: 0.51, threadCount: 12,
+  }),
+  open_folder: () => ({
+    root: "/demo", name: "demo",
+    entries: [dir("/demo/src", "src"), file("/demo/README.md", "README.md", "markdown", 40)],
+    settings: SETTINGS,
+  }),
+  list_dir: (a) => (a.path === "/demo/src"
+    ? [file("/demo/src/main.rs", "main.rs", "rust", SRC_RS.length),
+       file("/demo/src/auth.py", "auth.py", "python", SRC_PY.length)]
+    : []),
+  read_file: (a) => {
+    const body = a.path.endsWith("main.rs") ? SRC_RS
+      : a.path.endsWith("auth.py") ? SRC_PY : "# demo\n";
+    return {
+      path: a.path, content: body, truncated: false, large: false, size: body.length,
+      language: a.path.endsWith(".py") ? "python" : a.path.endsWith(".rs") ? "rust" : "markdown",
+      message: null, eol: "lf",
+    };
+  },
+  write_file: (a) => { lastWrite = a; return { path: a.path, bytes: a.content.length }; },
+  git_status: () => ({
+    isRepo: true, root: "/demo", branch: "main", upstream: "origin/main",
+    ahead: 0, behind: 0, detached: false, hasConflicts: false,
+    unavailableReason: null, message: null,
+    entries: [
+      { path: "src/auth.py", originalPath: null, status: "modified", staged: false, indexStatus: " ", worktreeStatus: "M" },
+      { path: "README.md", originalPath: null, status: "untracked", staged: false, indexStatus: "?", worktreeStatus: "?" },
+    ],
+  }),
+  git_log: () => [{ hash: "abc1234", author: "Ada", relativeDate: "1 hour ago", subject: "Initial" }],
+  git_branches: () => [["main", true]],
+  terminal_create: () => ({ id: 1, title: "bash", cwd: "/demo" }),
+  terminal_list: () => [],
+  ai_retrieve_context: () => ({ files: [], totalTokens: 0, truncated: false }),
+  quick_open: () => [
+    { path: "src/main.rs", name: "main.rs", isDir: false, score: 900 },
+    { path: "src/auth.py", name: "auth.py", isDir: false, score: 800 },
+  ],
+  search_workspace: () => ({
+    matches: [
+      { path: "src/main.rs", line: 4, column: 5, preview: "    let mut m: HashMap<String, u32> = HashMap::new();", matchStart: 12, matchLength: 7, truncatedLine: false },
+    ],
+    filesScanned: 2, truncated: false, elapsedMs: 3,
+  }),
+  secret_status: () => ({ present: { ducky: true }, osKeystore: false }),
+  classify_command: () => ({ risk: "readOnly", requiresExplicitConfirmation: false }),
+};
+
+W.__TAURI__ = {
+  core: {
+    invoke: (cmd, args) => Promise.resolve(
+      Object.prototype.hasOwnProperty.call(HANDLERS, cmd) ? HANDLERS[cmd](args ?? {}) : null,
+    ),
+  },
+  event: { listen: () => Promise.resolve(() => {}) },
+};
+
+// jsdom has no layout engine.
+W.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} };
+W.IntersectionObserver ??= class { observe() {} unobserve() {} disconnect() {} takeRecords() { return []; } };
+W.matchMedia ??= () => ({ matches: false, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} });
+W.confirm = () => true;
+// jsdom ships no fetch; nothing in the app should need it, but a stray call
+// would otherwise reject during a render and take the whole run down.
+// The bundle's language modes are 40 dynamic imports that all resolve to the
+// editor-engine chunk, and Vite's preload helper "warms" it with fetch. In a
+// browser that is a no-op -- the chunk is in index.html's modulepreload list --
+// but here it would throw. Resolving with an empty 200 keeps the hint harmless;
+// the real dynamic import still loads the code from disk.
+W.fetch = () => Promise.resolve({
+  ok: true, status: 200, statusText: "OK",
+  text: () => Promise.resolve(""),
+  json: () => Promise.resolve({}),
+  arrayBuffer: () => Promise.resolve(new ArrayBuffer(0)),
+  headers: { get: () => null },
+});
+globalThis.fetch = W.fetch;
+W.prompt = (m, d) => d ?? "typed";
+const SIZES = {
+  clientWidth: 1200, clientHeight: 600, offsetWidth: 1200, offsetHeight: 22,
+  scrollHeight: 600, scrollWidth: 1200,
+  clientTop: 0, clientLeft: 0, offsetTop: 0, offsetLeft: 0, tabIndex: 0,
+};
+for (const [p, v] of Object.entries(SIZES)) {
+  if (!Object.getOwnPropertyDescriptor(W.HTMLElement.prototype, p)?.get) {
+    Object.defineProperty(W.HTMLElement.prototype, p, { get: () => v, configurable: true });
+  }
+}
+// Scroll offsets must be *writable*: the terminal does
+// `output.scrollTop = output.scrollHeight`, and a read-only stub throws inside
+// the render, which aborts the rest of the paint and hides later assertions.
+for (const p of ["scrollTop", "scrollLeft"]) {
+  const store2 = new WeakMap();
+  Object.defineProperty(W.HTMLElement.prototype, p, {
+    get() { return store2.get(this) ?? 0; },
+    set(v) { store2.set(this, Number(v) || 0); },
+    configurable: true,
+  });
+}
+W.HTMLElement.prototype.getBoundingClientRect = () => ({
+  x: 0, y: 0, top: 0, left: 0, right: 1200, bottom: 22, width: 1200, height: 22, toJSON() {},
+});
+W.HTMLElement.prototype.setSelectionRange = () => {};
+// jsdom implements neither of these; the editor and the palette both call them.
+W.Element.prototype.scrollIntoView = function () {};
+W.Element.prototype.scrollTo = function () {};
+W.HTMLElement.prototype.focus = function () {};
+W.HTMLElement.prototype.blur = function () {};
+if (W.Range) {
+  const r = { x: 0, y: 0, top: 0, left: 0, right: 0, bottom: 0, width: 0, height: 0, toJSON() {} };
+  W.Range.prototype.getClientRects = () => [r];
+  W.Range.prototype.getBoundingClientRect = () => r;
+}
+for (const k of Object.getOwnPropertyNames(W)) {
+  if (k in globalThis) continue;
+  try { globalThis[k] = W[k]; } catch { /* getter-only */ }
+}
+globalThis.window = W;
+globalThis.document = doc;
+globalThis.self = W;
+globalThis.navigator ??= W.navigator;
+for (const n of ["ResizeObserver", "IntersectionObserver", "matchMedia", "getComputedStyle",
+  "requestAnimationFrame", "cancelAnimationFrame", "CustomEvent", "KeyboardEvent", "MouseEvent",
+  "InputEvent", "MutationObserver", "Node", "Element", "HTMLElement", "DOMParser", "Text", "Range",
+  "NodeFilter", "DocumentFragment", "CSS"]) {
+  if (W[n] !== undefined) globalThis[n] = W[n];
+}
+
+// ---------------------------------------------------------------------------
+// Boot
+// ---------------------------------------------------------------------------
+
+const chunk = readdirSync(ASSETS).find((f) => /^index-.*\.js$/.test(f));
+await import(pathToFileURL(join(ASSETS, chunk)).href);
+await settle(400);
+await settle(400);
+await settle(400);
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+group("boot");
+check("shell mounted", !!$(".shell"));
+check("workspace opened", !$(".welcome-host.is-visible"), $(".workspace-name") ? "" : "");
+check("status bar rendered", $$(".status-item").length > 0, `${$$(".status-item").length} items`);
+check("LOW MEMORY indicator present", text($(".status-item--mem")).includes("LOW MEMORY"));
+
+group("activity bar switches panels");
+const panelFor = (label) =>
+  $a(".activity-item").find((b) => b.getAttribute("aria-label") === label);
+
+for (const [label, expect] of [
+  ["Search", ".search-wrap"],
+  ["Source Control", ".scm-wrap"],
+  ["Run and Debug", ".run-wrap"],
+  ["Extensions", ".ext-wrap"],
+  ["Explorer", ".tree-wrap"],
+]) {
+  click(panelFor(label));
+  await settle();
+  check(`${label} panel shows ${expect}`, !!$(expect));
+}
+
+group("explorer: lazy expansion");
+const srcRow = () => $a(".tree-row").find((r) => text(r.querySelector(".tree-name")) === "src");
+check("src folder visible but not expanded", !!srcRow() && $$(".tree-row").length === 3,
+  `${$$(".tree-row").length} rows before expanding`);
+click(srcRow()?.querySelector(".tree-twisty"));
+await settle(200);
+await settle(150);
+const names = () => $a(".tree-row").map((r) => text(r.querySelector(".tree-name")));
+check("expanding src loads its children", names().includes("main.rs") && names().includes("auth.py"),
+  names().join(", "));
+
+group("editor: open a file");
+const fileRow = (n) => $a(".tree-row").find((r) => text(r.querySelector(".tree-name")) === n);
+const tabsBefore = $$(".tab").length;
+check("a folder auto-opens a source file", tabsBefore === 1,
+  `${tabsBefore} tab(s) open on load`);
+click(fileRow("main.rs"));
+await settle(300);
+await settle(200);
+check("a tab opened", $$(".tab").length === 1, text($(".tab-name")));
+check("tab is named main.rs", text($(".tab-name")) === "main.rs");
+check("editor shows the file", text($(".cm-content")).includes("HashMap"),
+  text($(".cm-content")).slice(0, 50));
+const statusTexts = () => $a(".status-item").map(text).join(" | ");
+check("language detected as Rust", statusTexts().includes("Rust"), statusTexts());
+const spans = $$(".cm-line span").length;
+check("syntax highlighting produced token spans", spans > 0, `${spans} spans`);
+
+group("tabs: open a second file and switch");
+click(fileRow("auth.py"));
+await settle(400);
+await settle(300);
+check("two tabs now open", $$(".tab").length === 2, `${$$(".tab").length}`);
+const activeName = () => text($(".tab.is-active .tab-name"));
+check("newest tab is active", activeName() === "auth.py", activeName());
+check("editor swapped to Python", text($(".cm-content")).includes("hashlib"));
+check("status bar reports Python", text($(".status-bar")).includes("Python"));
+
+click($$(".tab")[0]);
+await settle(300);
+await settle(150);
+check("clicking the first tab activates it", activeName() === "main.rs", activeName());
+check("editor swapped back to Rust", text($(".cm-content")).includes("HashMap"));
+
+group("editor: dirty state and save");
+click($$(".tab")[0]);
+await settle(200);
+// Drive a real CodeMirror transaction. The view is reached through the seam the
+// editor deliberately exposes on its own DOM node.
+const cmView = $(".cm-editor")?.cmView;
+check("editor exposes its view for automation", !!cmView?.dispatch);
+if (cmView?.dispatch) {
+  check("tab starts clean", !$(".tab").classList.contains("is-dirty"));
+  cmView.dispatch({ changes: { from: 0, insert: "// edited by the test\n" } });
+  await settle(250);
+  check("the edit reached the document", text($(".cm-content")).includes("edited by the test"));
+  check("tab became dirty after an edit", $(".tab").classList.contains("is-dirty"));
+  check("dirty tab is marked for the user", !!$(".tab .tab-dirty, .tab.is-dirty"));
+
+  lastWrite = null;
+  key("s", { ctrlKey: true });
+  await settle(400);
+  await settle(250);
+  check("Ctrl+S wrote the file", lastWrite !== null, lastWrite ? lastWrite.path : "no write");
+  check("the write carried the edit", (lastWrite?.content ?? "").includes("edited by the test"),
+    lastWrite ? `${(lastWrite.content ?? "").length} bytes` : "");
+  check("tab is clean after save", !$(".tab").classList.contains("is-dirty"));
+}
+
+group("Ducky AI panel");
+click(panelFor("Ducky AI"));
+await settle(250);
+check("AI panel is visible", !$(".ai-panel").classList.contains("is-hidden") && !!$(".ai-composer"));
+check("Chat/Agent toggle present", !!$(".ai-mode-toggle"));
+check("Context indicator present", !!$(".ai-context-chip"));
+check("explorer stays open alongside AI", !$(".sidebar").classList.contains("is-hidden"));
+click(panelFor("Ducky AI"));
+await settle(200);
+check("AI panel closes again", $(".ai-panel").classList.contains("is-hidden"));
+
+group("command palette");
+key("p", { ctrlKey: true, shiftKey: true });
+await settle(200);
+check("Ctrl+Shift+P opens the palette", !!$(".palette-overlay"));
+const cmdCount = $$(".palette-item").length;
+check("palette lists commands", cmdCount > 20, `${cmdCount} commands`);
+const paletteText = text($(".palette-list"));
+check("palette includes AI commands", /Explain|Refactor|Tests/i.test(paletteText));
+check("palette includes memory commands", /Low Memory/i.test(paletteText));
+key("Escape");
+await settle(200);
+check("Escape closes the palette", !$(".palette-overlay"));
+
+group("quick open");
+key("p", { ctrlKey: true });
+await settle(400);
+await settle(300);
+check("Ctrl+P opens quick open", !!$(".palette-overlay"));
+check("placeholder invites a file search", ($(".palette-input")?.getAttribute("placeholder") ?? "").includes("file"),
+  $(".palette-input")?.getAttribute("placeholder") ?? "");
+key("Escape");
+await settle(150);
+
+group("terminal panel");
+key("`", { ctrlKey: true });
+await settle(400);
+await settle(200);
+check("Ctrl+` shows the bottom panel", !$(".bottom-panel").classList.contains("is-hidden"));
+check("terminal tab strip rendered", $$(".bottom-tab").length >= 3,
+  $a(".bottom-tab").map((b) => text(b)).join(" | "));
+key("`", { ctrlKey: true });
+await settle(200);
+check("Ctrl+` hides it again", $(".bottom-panel").classList.contains("is-hidden"));
+
+group("layout invariants");
+check("status bar is a sibling row, not a column", (() => {
+  const bar = $(".status-bar");
+  const body = $(".shell-body");
+  return bar && body && bar.parentElement === body.parentElement && bar !== body;
+})(), "the status bar bug that put it beside the editor");
+check("AI panel is inside the body band", (() => {
+  const p = $(".ai-panel");
+  return p && p.parentElement?.classList.contains("shell-body");
+})());
+check("sidebar and editor are siblings in the band", (() => {
+  const s = $(".sidebar"), m = $(".main-column");
+  return s && m && s.parentElement === m.parentElement;
+})());
+
+group("problems panel");
+key("m", { ctrlKey: true, shiftKey: true });
+await settle(300);
+check("Ctrl+Shift+M shows problems", !$(".bottom-panel").classList.contains("is-hidden"));
+check("problems view rendered", !!$(".panel-empty, .problems-group"));
+
+// ---------------------------------------------------------------------------
+
+results.unshift(`interaction tests — ${process.exitCode ? "FAILURES PRESENT" : "all passed"}`);
+if (problems.length) {
+  results.push("");
+  results.push(`runtime problems (${problems.length}):`);
+  for (const p of problems.slice(0, 5)) results.push(`  ${p.split("\n")[0]}`);
+}
+console.log(results.join("\n"));

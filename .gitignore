@@ -1,0 +1,29 @@
+# Ducky Coder Lite — build artefacts
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# Rust
+src-tauri/target/
+src-tauri/gen/
+
+# Editors
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+.DS_Store
+
+# Logs
+*.log
+npm-debug.log*
+yarn-error.log*
+
+# Local credentials: written at runtime, never committed.
+credentials.json
+settings.json
+settings.corrupt.json
+
+# Verify-script logs
+.verify/

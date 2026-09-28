@@ -1,0 +1,73 @@
+[package]
+name = "ducky-coder-lite"
+version = "1.0.0"
+description = "A lightweight AI coding environment engineered for 2 GB RAM machines."
+authors = ["Ducky Coder"]
+edition = "2021"
+rust-version = "1.77"
+default-run = "ducky-coder-lite"
+
+[lib]
+name = "ducky_lite_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "ducky-coder-lite"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["protocol-asset"] }
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
+
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# HTTP for remote AI inference. rustls keeps the binary free of a system
+# OpenSSL dependency and avoids the memory cost of a C TLS stack.
+#
+# NOTE: the `stream` feature is deliberately NOT enabled. It pulls in
+# `futures-util`, which asks for a `js-sys/futures-util` feature that recent
+# `js-sys` releases no longer expose (they moved to `dep:` syntax), so enabling
+# it makes dependency resolution fail outright. `Response::chunk()` reads the
+# SSE stream just as well and is available without the feature, which also
+# drops `futures-util` and the whole `wasm-bindgen` subtree from the build.
+reqwest = { version = "0.12", default-features = false, features = [
+  "json",
+  "rustls-tls",
+  "charset",
+  "http2",
+] }
+# Only the features the PTY and the blocking work actually need. `process` and
+# `macros` are unused today and would only cost compile time.
+tokio = { version = "1", features = ["io-util", "io-std", "rt", "sync", "time"] }
+
+# Terminal. portable-pty gives a real PTY so shells behave exactly as they do
+# in a native terminal emulator (job control, colours, prompts).
+portable-pty = "0.8"
+
+# Filesystem traversal for search / project scan. `ignore` supplies the parallel
+# walker, the gitignore handling and the glob engine, so it is the only
+# traversal crate needed.
+ignore = "0.4"
+globset = "0.4"
+memchr = "2"
+
+dirs = "5"
+thiserror = "1"
+parking_lot = "0.12"
+regex = "1"
+
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
+
+[profile.release]
+# A 2 GB machine pays for every byte of resident code. Optimise for size.
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = true
+incremental = false
