@@ -178,6 +178,17 @@ pub struct AiConfig {
     pub history_char_budget: usize,
     /// Compress the conversation once it exceeds this many messages.
     pub history_message_threshold: usize,
+    /// Let the model menu choose the model per turn instead of using the one
+    /// named in `provider.model`.
+    ///
+    /// `default` rather than `deny_unknown_fields`, and with a serde default,
+    /// so a settings file written before these existed still loads.
+    #[serde(default)]
+    pub auto_select_model: bool,
+    /// Ask the provider for extended reasoning. Providers without a thinking
+    /// mode ignore it rather than failing the request.
+    #[serde(default)]
+    pub thinking: bool,
 }
 
 impl Default for AiConfig {
@@ -193,6 +204,8 @@ impl Default for AiConfig {
             agent_can_run_commands: true,
             history_char_budget: 120_000,
             history_message_threshold: 24,
+            auto_select_model: false,
+            thinking: false,
         }
     }
 }

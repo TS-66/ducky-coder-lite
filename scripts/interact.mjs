@@ -62,6 +62,8 @@ const $a = (s) => [...doc.querySelectorAll(s)];
 const text = (el) => (el?.textContent ?? "").replace(/\s+/g, " ").trim();
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+/** The model the fixture is configured with. */
+const state_model = () => SETTINGS.ai.provider.model;
 /** Let the render queue (a microtask + rAF) drain. */
 const settle = async (ms = 90) => { await wait(ms); };
 
@@ -149,6 +151,7 @@ const SETTINGS = {
     autocompleteDebounceMs: 350, autocompleteEnabled: true,
     agentRequiresApproval: true, agentCanRunCommands: true,
     historyCharBudget: 120000, historyMessageThreshold: 24,
+    autoSelectModel: false, thinking: false,
   },
   terminal: {
     shell: "/bin/bash", args: [], cwd: "", scrollbackLines: 750,
@@ -287,7 +290,14 @@ W.HTMLElement.prototype.setSelectionRange = () => {};
 // jsdom implements neither of these; the editor and the palette both call them.
 W.Element.prototype.scrollIntoView = function () {};
 W.Element.prototype.scrollTo = function () {};
-W.HTMLElement.prototype.focus = function () {};
+// Focus is stubbed, because several surfaces close themselves with a keydown
+// bound to the element that holds focus, and jsdom's focus rules are not the
+// browser's. Rather than model that, focus *calls* are recorded: the assertions
+// then check that the app asked for focus, which is the part it controls.
+const focusLog = [];
+W.HTMLElement.prototype.focus = function () {
+  focusLog.push(this.className || this.tagName);
+};
 W.HTMLElement.prototype.blur = function () {};
 if (W.Range) {
   const r = { x: 0, y: 0, top: 0, left: 0, right: 0, bottom: 0, width: 0, height: 0, toJSON() {} };
@@ -452,6 +462,46 @@ check("breadcrumb starts at the workspace root", text($(".editor-crumbs")).inclu
 check("breadcrumb names the open file", /test_auth\.py|main\.rs/.test(text($(".editor-crumbs"))),
   text($(".editor-crumbs")));
 check("model capsule is present", !!$(".title-model"));
+
+// The model menu, checked against the reference screenshot's structure: a hint
+// row, two switches, then the models with a tick on the selected one.
+click($(".title-model"));
+await settle(250);
+check("the capsule opens the model menu", !!$(".mm"));
+check("menu leads with a keybinding hint", !!text($(".mm-hint")).trim(), text($(".mm-hint")));
+check("menu has the two switches", $a(".mm-switch").length === 2,
+  $a(".mm-row--switch").map((r) => text(r).split(" ")[0]).join(", "));
+check("switches are labelled Auto-select and Thinking",
+  /Auto-select/.test(text($a(".mm-row--switch")[0])) && /Thinking/.test(text($a(".mm-row--switch")[1])),
+  $a(".mm-row--switch").map((r) => text(r)).join(" | "));
+check("menu is split into groups by rules", $a(".mm-rule").length === 2,
+  `${$a(".mm-rule").length} rules`);
+const mmModels = $a(".mm-row").filter((r) => !r.classList.contains("mm-row--switch"));
+check("menu lists the configured models", mmModels.length >= 1,
+  mmModels.map((r) => text(r)).join(" | "));
+check("exactly one model is ticked", $a(".mm-tick").length === 1,
+  `${$a(".mm-tick").length} ticks`);
+check("the ticked model is the configured one",
+  !!$(".mm-row.is-selected .mm-tick") &&
+  text($(".mm-row.is-selected")).includes(state_model()),
+  text($(".mm-row.is-selected")));
+
+// Toggling a switch must persist, not just repaint.
+const before = $(".mm-switch").classList.contains("is-on");
+click($a(".mm-row--switch")[0]);
+await settle(300);
+check("toggling a switch flips it", $(".mm-switch")?.classList.contains("is-on") !== before);
+// A menu must be reachable by keyboard: it is focusable, and Escape must land on
+// it rather than on whatever is behind.
+check("the menu is focusable", $(".mm")?.getAttribute("tabindex") === "-1");
+check("the menu asks for focus when it opens", focusLog.includes("mm"),
+  JSON.stringify(focusLog.slice(-4)));
+key("Escape");
+await settle(200);
+check("Escape closes the model menu", !$(".mm"), `still open: ${!!$(".mm")}`);
+// And it must not steal the next Escape, or two surfaces close at once.
+key("Escape");
+await settle(150);
 check("connection dot is present", !!$(".title-cloud"));
 check("account avatar is present", !!$(".title-avatar"));
 check("account avatar is 24px round", (() => {

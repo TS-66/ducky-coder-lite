@@ -223,6 +223,10 @@ export interface AiConfig {
   agentCanRunCommands: boolean;
   historyCharBudget: number;
   historyMessageThreshold: number;
+  /** Let the model menu pick a model per turn. */
+  autoSelectModel: boolean;
+  /** Request extended reasoning where the provider supports it. */
+  thinking: boolean;
 }
 
 export interface EditorConfig {

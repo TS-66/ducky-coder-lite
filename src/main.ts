@@ -69,6 +69,7 @@ import {
   openQuickOpen,
   type Command,
 } from "./ui/palette";
+import { openModelMenu, isModelMenuOpen, closeModelMenu } from "./ui/model-menu";
 import { openSettings } from "./ui/settings";
 import { openInlineAi, setEditorHost, setFocusTarget, runQuickAction } from "./ui/inline-ai";
 import { openDiff } from "./ui/diff";
@@ -98,7 +99,7 @@ if (!root) throw new Error("#app is missing from index.html");
 const shell = createShell(root, {
   onBack: () => historyNav(-1),
   onForward: () => historyNav(1),
-  onOpenModelPicker: () => openSettings("ai"),
+  onOpenModelPicker: () => openModelMenu(COMMANDS),
   onOpenCommandCenter: () => openCommandCenter(COMMANDS),
   onOpenAccount: () => openSettings("general"),
   onOpenIndexingInfo: () => {
@@ -380,6 +381,15 @@ const COMMANDS: Command[] = [
   { id: "file.saveAll", title: "Save All", category: "File", shortcut: `${IS_MAC ? "⌘" : "Ctrl"}+Shift+S`, icon: icons.check, run: () => void saveAll() },
   { id: "file.close", title: "Close Tab", category: "File", shortcut: `${IS_MAC ? "⌘" : "Ctrl"}+W`, icon: icons.close, run: () => void closeActive() },
   { id: "file.reopen", title: "Reopen Closed Tab", category: "File", shortcut: `${IS_MAC ? "⌘" : "Ctrl"}+Shift+T`, icon: icons.history, run: () => void reopenClosedTab() },
+  {
+    id: "ai.modelMenu",
+    title: "Ducky AI: Choose Model…",
+    category: "Ducky AI",
+    shortcut: "mod+7",
+    hidden: true,
+    icon: icons.box,
+    run: () => openModelMenu(COMMANDS),
+  },
   { id: "file.quickOpen", title: "Go to File…", category: "File", shortcut: `${IS_MAC ? "⌘" : "Ctrl"}+P`, icon: icons.search, run: () => void openQuickOpen() },
   { id: "file.revealExternal", title: "Reveal Active File in File Manager", category: "File", icon: icons.folderOpen, run: () => revealExternal() },
 
@@ -1148,6 +1158,17 @@ for (const b of DEFAULT_BINDINGS) {
 window.addEventListener(
   "keydown",
   (e) => {
+    // Escape belongs to the topmost transient surface, and this is the one place
+    // that knows what is on top. A popup that installs its own document-level
+    // listener can be starved by any other capture-phase handler, and a popup
+    // that only closes on a click outside strands anyone using the keyboard.
+    if (e.key === "Escape" && isModelMenuOpen()) {
+      e.preventDefault();
+      e.stopPropagation();
+      closeModelMenu();
+      return;
+    }
+
     // `e.target` is not guaranteed to be an Element: a keydown dispatched at
     // the document or window level has a Document/Window target, and calling
     // `.closest()` on those throws. Treat "not an element" as "not in a
@@ -1341,6 +1362,8 @@ function fallbackSettings(): NonNullable<State["settings"]> {
       agentCanRunCommands: true,
       historyCharBudget: 120_000,
       historyMessageThreshold: 24,
+      autoSelectModel: false,
+      thinking: false,
     },
     terminal: {
       shell: IS_MAC ? "/bin/zsh" : "/bin/bash",
