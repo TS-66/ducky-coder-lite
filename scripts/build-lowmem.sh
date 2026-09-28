@@ -53,7 +53,20 @@ if [ -z "$CARGO_MINOR" ] || [ "$CARGO_MINOR" -lt "$MIN_MINOR" ]; then
 fi
 
 # One rustc at a time. This is the single most important line in the file.
-export CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-1}"
+# Job count is derived from free memory rather than pinned to 1, because 1 on a
+# multi-core box wastes the machine. A single rustc peaks around 500 MB on the
+# heavy crates; this holds back more headroom than the dev build does (900 MB
+# rather than 600) because the release *link* step is the real memory spike, and
+# it runs while cargo still has a rustc alive.
+if [ -z "${CARGO_BUILD_JOBS:-}" ]; then
+  CORES="$(nproc 2>/dev/null || echo 1)"
+  AVAIL_MB="$(awk '/MemAvailable/ {printf "%d", $2/1024}' /proc/meminfo 2>/dev/null || echo 1024)"
+  [ -n "$AVAIL_MB" ] && [ "$AVAIL_MB" -gt 0 ] 2>/dev/null || AVAIL_MB=1024
+  CARGO_BUILD_JOBS=$(( (AVAIL_MB - 900) / 600 ))
+  [ "$CARGO_BUILD_JOBS" -lt 1 ] && CARGO_BUILD_JOBS=1
+  [ "$CARGO_BUILD_JOBS" -gt "$CORES" ] && CARGO_BUILD_JOBS="$CORES"
+fi
+export CARGO_BUILD_JOBS
 # Debug info is a large part of a rustc process's footprint and is not needed
 # for a runnable build.
 export CARGO_PROFILE_DEV_DEBUG="${CARGO_PROFILE_DEV_DEBUG:-0}"
@@ -85,8 +98,14 @@ case "$TARGET" in
     (cd src-tauri && cargo test --lib)
     ;;
   release)
-    log "Full release bundle"
-    npm run tauri build
+    # Only the Linux targets are requested. `tauri.conf.json` lists deb, appimage,
+    # nsis, dmg and app, and asking for the Windows and macOS ones on Linux
+    # either fails or silently wastes time. AppImage is also left out on purpose:
+    # its bundler downloads a runtime from the network at build time, and a
+    # `.deb` installs with no network access at all.
+    log "Release bundle (.deb only -- AppImage needs a network download)"
+    npm run tauri build -- --bundles deb
+    log "Install with:  sudo dpkg -i src-tauri/target/release/bundle/deb/*.deb"
     ;;
   all)
     log "Type-checking the frontend"

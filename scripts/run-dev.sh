@@ -60,18 +60,44 @@ EOF
   exit 1
 fi
 
-# 2. One rustc at a time, and no debug info.
-export CARGO_BUILD_JOBS=1
+# 2. How many rustc processes at once.
+#
+# This used to be hard-pinned to 1, because a fully parallel build OOM-killed
+# this machine. But 1 on an 8-core box throws away most of the machine, and the
+# build is the long pole: 556 crates, several of them enormous generated C
+# bindings. Pinning to 1 was a blunt instrument for a real constraint.
+#
+# So the count is derived from memory actually available right now. A single
+# rustc peaks around 500 MB on the heavy crates, and holding ~600 MB back keeps
+# the desktop responsive, which matters more here than a fast build.
+#
+# Override with DUCKY_JOBS=4 ./scripts/run-dev.sh if you want it faster, or
+# DUCKY_JOBS=1 if something else is using the memory.
+CORES="$(nproc 2>/dev/null || echo 1)"
+AVAIL_MB="$(awk '/MemAvailable/ {printf "%d", $2/1024}' /proc/meminfo 2>/dev/null || echo 1024)"
+[ -n "$AVAIL_MB" ] && [ "$AVAIL_MB" -gt 0 ] 2>/dev/null || AVAIL_MB=1024
+
+if [ -n "${DUCKY_JOBS:-}" ]; then
+  JOBS="$DUCKY_JOBS"
+  JOB_WHY="set by DUCKY_JOBS"
+else
+  JOBS=$(( (AVAIL_MB - 600) / 600 ))
+  [ "$JOBS" -lt 1 ] && JOBS=1
+  [ "$JOBS" -gt "$CORES" ] && JOBS="$CORES"
+  JOB_WHY="derived from ${AVAIL_MB} MB free across ${CORES} cores"
+fi
+
+export CARGO_BUILD_JOBS="$JOBS"
 export CARGO_PROFILE_DEV_DEBUG=0
 # Keep the linker from ballooning on a small machine.
 export RUSTFLAGS="${RUSTFLAGS:-} -C debuginfo=0"
 
 echo "cargo    $CARGO_VER  ($CARGO_BIN)"
 echo "node     $(node --version)"
-echo "jobs     $CARGO_BUILD_JOBS (pinned: a parallel build gets OOM-killed here)"
+echo "jobs     $CARGO_BUILD_JOBS of $CORES cores  ($JOB_WHY)"
 echo
-echo "The first build compiles all 556 crates single-threaded. That takes a"
-echo "while. Ctrl-C is safe; re-running resumes."
+echo "First build compiles all 556 crates; on this machine expect 15-30 min."
+echo "Ctrl-C is safe at any point -- cargo keeps what it finished and resumes."
 echo
 
 exec npm run tauri dev "$@"

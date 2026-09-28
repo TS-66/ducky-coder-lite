@@ -67,7 +67,20 @@ tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
 [profile.release]
 # A 2 GB machine pays for every byte of resident code. Optimise for size.
 opt-level = "s"
-lto = true
-codegen-units = 1
+
+# Link-time optimisation is what turns a 100 MB dependency graph into a binary
+# worth shipping, but *fat* LTO with a single codegen unit is also the single
+# most memory-hungry way to ask for it: the link step has to hold every codegen
+# unit for every crate at once, and on this graph that is several GB. On a
+# 2.7 GB machine it gets the process OOM-killed -- which is the one outcome this
+# whole project exists to avoid.
+#
+# `thin` LTO recovers most of the size and runtime benefit at a fraction of the
+# peak, and 16 codegen units spread that peak across processes instead of
+# concentrating it. The cost is a slightly larger binary than fat LTO would
+# give; the benefit is that the build completes on the hardware it targets.
+lto = "thin"
+codegen-units = 16
+
 strip = true
 incremental = false
