@@ -697,6 +697,12 @@ check("problems view rendered", !!$(".panel-empty, .problems-group"));
 
 // ---------------------------------------------------------------------------
 
+// The app runs a permanent `setInterval` for the Problems panel, which is right
+// for a live app and fatal for a test: jsdom's event loop never drains, so the
+// runner hangs after the last assertion has already passed. Closing the window
+// is how a jsdom harness releases those timers.
+W.close();
+
 results.unshift(`interaction tests — ${process.exitCode ? "FAILURES PRESENT" : "all passed"}`);
 if (problems.length) {
   results.push("");

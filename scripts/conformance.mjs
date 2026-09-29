@@ -24,7 +24,7 @@
  * taken from the images.
  */
 
-import { readFileSync, readdirSync, existsSync } from "node:fs";
+import { readFileSync, readdirSync, existsSync, statSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -115,7 +115,25 @@ if (!existsSync(ASSETS)) {
   process.exit(2);
 }
 
+// A stale bundle reports on the *old* CSS, so every check below would pass
+// against code that is no longer the code. That has happened twice, so it is
+// refused outright rather than discovered later as a puzzling failure.
+const newestSource = allFiles(join(ROOT, "src"), ".css")
+  .concat(allFiles(join(ROOT, "src"), ".ts"))
+  .map((f) => statSync(f).mtimeMs)
+  .reduce((a, b) => Math.max(a, b), 0);
+
 const cssFile = readdirSync(ASSETS).find((f) => f.endsWith(".css"));
+if (cssFile) {
+  const built = statSync(join(ASSETS, cssFile)).mtimeMs;
+  if (built < newestSource) {
+    console.error(
+      `dist/ is stale: ${cssFile} was built before the newest source file.\n` +
+      "Run: npm run build",
+    );
+    process.exit(2);
+  }
+}
 if (!cssFile) {
   console.error("no stylesheet in dist/assets. Run: npm run build");
   process.exit(2);
@@ -162,6 +180,16 @@ check("island has a backdrop blur", /blur/.test(String(declValue(css, ".cmdk", "
 check("island border is tinted toward the accent",
   /56,\s*189,\s*248/.test(String(declValue(css, ".cmdk", "border"))),
   String(declValue(css, ".cmdk", "border")));
+
+// The reference underlines the active drawer tab rather than filling it. The
+// distinction is small but it is the kind of thing that reads as "different
+// product" rather than as "same layout", so it is pinned.
+// The minifier normalises `::after` to `:after`, so both spellings are accepted.
+// Checking only one made this a false failure against correct CSS.
+const hasUnderline = /\.bottom-tab\.is-active:{1,2}after/.test(css);
+const notFilled = /\.bottom-tab\.is-active\{[^}]*background:\s*transparent/.test(css);
+check("the active drawer tab is underlined, not filled", hasUnderline && notFilled,
+  `underline=${hasUnderline} notFilled=${notFilled}`);
 
 group("the model menu matches the screenshot");
 // A 260px popup, 26x14 switches, hairline rules between the three groups.

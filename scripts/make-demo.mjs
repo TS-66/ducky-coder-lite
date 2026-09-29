@@ -66,6 +66,17 @@ addEventListener("load", () => {
   if (want("terminal")) {
     after(2100, () => window.dispatchEvent(new CustomEvent("ducky:toggle-terminal")));
   }
+  // The two floating surfaces, so a capture can prove they match the reference
+  // rather than only proving the static layout does.
+  if (want("modelmenu")) {
+    after(2100, () => document.querySelector(".title-model")?.click());
+  }
+  if (want("cmdk")) {
+    after(2100, () => window.dispatchEvent(new KeyboardEvent("keydown", {
+      key: "k", ctrlKey: true, bubbles: true, cancelable: true,
+    })));
+  }
+
   if (want("chat")) {
     after(2700, () => {
       const chip = [...document.querySelectorAll(".ai-suggestion")]
