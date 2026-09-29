@@ -206,6 +206,12 @@ It carries a **memory watchdog**: a background poll of `MemAvailable` kills the
 running stage if free memory drops below 450 MB. The build gets slower rather
 than taking the desktop with it, which is the trade this project is built around.
 
+The UI is built against three Cursor screenshots, with their colours and
+geometry recorded in [`docs/REFERENCE.md`](docs/REFERENCE.md) and checked by
+`scripts/conformance.mjs`. The screenshots themselves lived on a removable
+volume and are no longer present; the measurements taken from them are the
+durable record.
+
 Two things about the tests are worth knowing:
 
 - `scripts/interact.mjs` drives the real bundle in a DOM: it clicks the activity

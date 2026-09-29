@@ -92,6 +92,15 @@ if [ "$STAGE" = "all" ] || [ "$STAGE" = "frontend" ]; then
     grep -E "FAIL|FAILURES" "$LOG_DIR/interact.log" | head -20 | sed 's/^/        /'
   fi
 
+  # The demo page is what the screenshot pipeline captures, and it is a build
+  # artefact, so the bundle step above has just deleted it. Rebuild it here or
+  # every later capture is a capture of a 404.
+  if node scripts/make-demo.mjs >/dev/null 2>&1; then
+    ok "demo page rebuilt for capture"
+  else
+    bad "could not rebuild the demo page"
+  fi
+
   stage "Reference conformance"
   # The colours and geometry are checked against values sampled from the
   # reference screenshots and the written specification. This is the strongest
