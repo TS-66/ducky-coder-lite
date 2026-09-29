@@ -34,6 +34,17 @@ export function setEditorHost(h: NonNullable<typeof host>): void {
   host = h;
 }
 
+/**
+ * The live editor host.
+ *
+ * Exposed so the surfaces that act on the editor -- the Cmd+K island, the diff
+ * reviewer -- talk to the same object this module does. Two separate references
+ * to "the editor" would drift the moment the selection or path changed.
+ */
+export function editorHost(): NonNullable<typeof host> | null {
+  return host;
+}
+
 let pending = false;
 let promptEl: HTMLElement | null = null;
 let inputEl: HTMLInputElement | null = null;
@@ -144,6 +155,11 @@ function closeInlineAi(): void {
 let hostRef: { focus(): void } = { focus: () => {} };
 export function setFocusTarget(target: { focus(): void }): void {
   hostRef = target;
+}
+
+/** Return focus to the editor. Used by every surface that borrows the keyboard. */
+export function focusEditor(): void {
+  hostRef.focus();
 }
 
 // ---------------------------------------------------------------------------

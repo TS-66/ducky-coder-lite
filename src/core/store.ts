@@ -76,6 +76,14 @@ export interface ChatEntry {
   error?: boolean;
   /** Attached context, so the user can see what the model was shown. */
   context?: { files: { path: string; tokens: number }[]; totalTokens: number; truncated: boolean };
+  /**
+   * The code this message refers to, when it came from a `mod+l` send-selection.
+   *
+   * Carried on the entry rather than buried in the history so the panel can show
+   * exactly what was sent, and so deleting the message deletes the reference
+   * with it.
+   */
+  selection?: { path: string; text: string };
   /** Proposed file changes awaiting approval. */
   proposal?: Proposal;
   ts: number;

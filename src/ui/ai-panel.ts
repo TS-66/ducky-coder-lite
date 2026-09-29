@@ -512,6 +512,21 @@ function renderEntry(entry: ChatEntry): HTMLElement {
       entry.streaming ? h("span", { class: "ai-cursor" }) : null,
       entry.cancelled ? h("div", { class: "ai-note" }, "Stopped.") : null,
     ),
+    // What `mod+l` sent, shown as a chip so the reference is visible and can be
+    // seen to be the right code.
+    entry.selection
+      ? h(
+          "div",
+          { class: "ai-sel-chip", title: entry.selection.path },
+          icons.file(11),
+          h("span", { class: "ai-sel-path" }, entry.selection.path.split("/").pop() ?? entry.selection.path),
+          h(
+            "span",
+            { class: "ai-sel-meta" },
+            `${entry.selection.text.split("\n").length} line${entry.selection.text.split("\n").length === 1 ? "" : "s"} selected`,
+          ),
+        )
+      : null,
     entry.context
       ? h(
           "div",

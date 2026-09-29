@@ -34,6 +34,7 @@ import {
   toast,
   type State,
   type PanelId,
+  type ChatEntry,
 } from "./core/store";
 
 import { createShell, renderShell, renderBottomTabs, renderWelcome } from "./ui/shell";
@@ -71,7 +72,14 @@ import {
 } from "./ui/palette";
 import { openModelMenu, isModelMenuOpen, closeModelMenu } from "./ui/model-menu";
 import { openSettings } from "./ui/settings";
-import { openInlineAi, setEditorHost, setFocusTarget, runQuickAction } from "./ui/inline-ai";
+import {
+  openInlineAi,
+  setEditorHost,
+  setFocusTarget,
+  runQuickAction,
+  editorHost,
+} from "./ui/inline-ai";
+import { cmdKFromShortcut, isCmdKOpen, closeCmdK } from "./ui/cmdk-island";
 import { openDiff } from "./ui/diff";
 import { KeyboardManager, DEFAULT_BINDINGS } from "./ui/keybinds";
 import { EditorHost, applyEditorVars } from "./editor/editor";
@@ -1035,9 +1043,41 @@ function onEvent(name: string, handler: (detail: unknown) => void): void {
 }
 
 onEvent("ducky:command-palette", () => openCommandPalette(COMMANDS));
+/**
+ * Send the current selection to the chat panel.
+ *
+ * The selection travels as a real, visible message rather than as hidden
+ * context, so the user can see what was sent and delete it if they meant to
+ * select something else.
+ */
+function sendSelectionToChat(): void {
+  const host = editorHost();
+  const selection = host?.getSelection().trim() ?? "";
+  if (!host || !selection) {
+    toast("Select some code first.", "info");
+    return;
+  }
+  const path = host.getPath();
+  store.update((s) => {
+    s.aiPanelVisible = true;
+    const entry: ChatEntry = {
+      id: `sel${Date.now()}`,
+      role: "user",
+      text: `\`${path}\`\n\n${selection}`,
+      selection: { path, text: selection },
+      ts: Date.now(),
+    };
+    s.chat.push(entry);
+    s.chatHistory.push({ role: "user", content: entry.text });
+  });
+  toast(`Sent ${selection.split("\n").length} line(s) from ${path} to chat.`, "success");
+}
+
 onEvent("ducky:quick-open", () => void openQuickOpen());
 onEvent("ducky:toggle-ai", toggleAi);
 onEvent("ducky:inline-ai", () => openInlineAi());
+onEvent("ducky:cmdk", () => cmdKFromShortcut());
+onEvent("ducky:send-selection", sendSelectionToChat);
 onEvent("ducky:composer", openComposer);
 onEvent("ducky:toggle-sidebar", toggleSidebar);
 onEvent("ducky:toggle-bottom", toggleBottom);
@@ -1162,6 +1202,15 @@ window.addEventListener(
     // that knows what is on top. A popup that installs its own document-level
     // listener can be starved by any other capture-phase handler, and a popup
     // that only closes on a click outside strands anyone using the keyboard.
+    // Ordered outermost-first: the editing island sits over the editor, the
+    // model menu over that. Only the top one may consume the keystroke, or a
+    // single Escape would close two surfaces at once.
+    if (e.key === "Escape" && isCmdKOpen()) {
+      e.preventDefault();
+      e.stopPropagation();
+      closeCmdK();
+      return;
+    }
     if (e.key === "Escape" && isModelMenuOpen()) {
       e.preventDefault();
       e.stopPropagation();

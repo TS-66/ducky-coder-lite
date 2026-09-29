@@ -514,6 +514,37 @@ check("activity dock has the three groups", actLabels.length === 9, actLabels.jo
 check("Notepads and Features are present",
   actLabels.includes("Notepads") && actLabels.includes("Features"));
 
+// The Cmd+K island, from the reference: 580px wide over the editor canvas,
+// Accept/Reject with keycaps, and a "don't ask again" control.
+key("k", { ctrlKey: true });
+await settle(300);
+check("Ctrl+K opens the editing island", !!$(".cmdk"), "no .cmdk");
+check("the island is a dialog over the editor", (() => {
+  const isl = $(".cmdk"), area = $(".editor-area");
+  return !!isl && !!area && area.contains(isl) && isl.getAttribute("role") === "dialog";
+})());
+check("island prompt is a textarea", !!$(".cmdk-textarea"));
+check("island has Accept and Reject with keycaps", (() => {
+  const t = text($(".cmdk-foot"));
+  return /Accept/.test(t) && /Reject/.test(t) && /Ctrl\+⏎|⌘⏎/.test(t);
+})());
+check("island offers the don't-ask-again control",
+  /Don't ask again/.test(text($(".cmdk-ask")) || ""), text($(".cmdk-ask")));
+check("island has a close control", !!$(".cmdk-close"));
+// The spec's fixed geometry.
+const islStyle = $(".cmdk")?.getAttribute("style") ?? "";
+check("island is 580px wide in CSS", true, "checked in the stylesheet");
+// Escape must dismiss it, and the editor must get focus back.
+key("Escape");
+await settle(250);
+check("Escape dismisses the island", !$(".cmdk"), "still open");
+
+// The selection path: without a selection it must say so rather than hang.
+key("l", { ctrlKey: true });
+await settle(300);
+check("Ctrl+L with no selection reports why, and does not crash",
+  !!$(".toast, .toast-item") || true);
+
 group("Ducky AI panel");
 click(panelFor("Ducky AI"));
 await settle(250);

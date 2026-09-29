@@ -209,6 +209,20 @@ export const DEFAULT_BINDINGS: Binding[] = [
     run: () => window.dispatchEvent(new CustomEvent("ducky:inline-ai")),
   },
   {
+    // The editing island. `mod+k` because that is where the muscle memory is:
+    // one keystroke, a box over the code, write what you want changed.
+    combo: "mod+k",
+    label: "Ducky AI: Edit Selection with Ducky",
+    run: () => window.dispatchEvent(new CustomEvent("ducky:cmdk")),
+  },
+  {
+    // Send the selection to chat. Separate from `mod+k` because the two answers
+    // to a selection are different questions: "change this" and "explain this".
+    combo: "mod+l",
+    label: "Ducky AI: Send Selection to Chat",
+    run: () => window.dispatchEvent(new CustomEvent("ducky:send-selection")),
+  },
+  {
     combo: "mod+shift+i",
     label: "Ducky AI: Composer",
     run: () => window.dispatchEvent(new CustomEvent("ducky:composer")),

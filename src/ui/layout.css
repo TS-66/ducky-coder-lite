@@ -4091,3 +4091,222 @@ html[data-animations="off"] .ai-composer-wrap.is-agent {
 .mm-switch.is-on .mm-switch-knob {
   transform: translateX(12px);
 }
+
+/* ==========================================================================
+   The Cmd+K editing island
+
+   580px wide, 64px before it has to grow, floating over the editor canvas.
+   The dimensions are fixed deliberately: an instruction that rewrites a
+   function is a paragraph, and a one-line input makes people write worse
+   instructions.
+   ========================================================================== */
+
+.cmdk {
+  position: absolute;
+  z-index: 60;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 580px;
+  max-width: calc(100% - 32px);
+  min-height: 64px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px 10px;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  border-radius: var(--radius-lg);
+  /* Translucent on purpose: the point is to keep reading the code underneath
+     while describing the change to it. */
+  background: rgba(26, 26, 30, 0.82);
+  backdrop-filter: blur(20px);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
+  font-size: var(--fs-sm);
+  color: var(--fg);
+}
+
+.cmdk.is-busy {
+  border-color: var(--border-strong);
+}
+
+.cmdk-grip {
+  position: absolute;
+  top: 5px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 28px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--border-strong);
+}
+
+.cmdk-textarea {
+  width: 100%;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--fg-strong);
+  font-family: var(--font-ui);
+  font-size: var(--fs-md);
+  line-height: 1.5;
+  resize: none;
+  outline: none;
+}
+
+.cmdk-textarea::placeholder {
+  color: var(--fg-subtle);
+}
+
+.cmdk-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cmdk-foot-spacer {
+  flex: 1;
+}
+
+.cmdk-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  color: var(--fg-muted);
+  font-size: var(--fs-xs);
+  font-family: var(--font-ui);
+  cursor: pointer;
+  transition: background 90ms ease, color 90ms ease, border-color 90ms ease;
+}
+
+.cmdk-btn:hover {
+  background: var(--bg-hover);
+  color: var(--fg-strong);
+}
+
+.cmdk-btn--accept {
+  border-color: rgba(56, 189, 248, 0.4);
+  color: var(--accent);
+}
+
+.cmdk-btn--accept:hover {
+  background: var(--accent-soft);
+}
+
+.cmdk-key {
+  padding: 0 4px;
+  border-radius: 3px;
+  background: var(--bg-active);
+  color: var(--fg-subtle);
+  font-size: 10px;
+}
+
+.cmdk-ask {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--fg-subtle);
+  font-size: var(--fs-xs);
+  cursor: pointer;
+  user-select: none;
+}
+
+.cmdk-ask-box {
+  width: 11px;
+  height: 11px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.cmdk-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 14px;
+  color: var(--fg-subtle);
+  font-size: var(--fs-xs);
+}
+
+.cmdk-error {
+  color: var(--err);
+}
+
+.cmdk-spinner {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border-strong);
+  border-top-color: var(--accent);
+  animation: cmdk-spin 700ms linear infinite;
+}
+
+@keyframes cmdk-spin {
+  to { transform: rotate(360deg); }
+}
+
+html[data-low-memory="on"] .cmdk-spinner {
+  animation: none;
+  border-top-color: var(--border-strong);
+}
+
+.cmdk-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--fg-subtle);
+  cursor: pointer;
+}
+
+.cmdk-close:hover {
+  background: var(--bg-hover);
+  color: var(--fg-strong);
+}
+
+/* The reference's backdrop blur is a real compositor cost, so it is the first
+   thing dropped when the machine is tight. */
+html[data-low-memory="on"] .cmdk {
+  backdrop-filter: none;
+  background: #1a1a1e;
+}
+
+/* --- The send-selection chip in the chat ---------------------------------- */
+
+.ai-sel-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  max-width: 100%;
+  margin-bottom: 6px;
+  padding: 2px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  background: var(--bg-raised);
+  color: var(--fg-muted);
+  font-size: var(--fs-xs);
+  font-family: var(--font-ui);
+}
+
+.ai-sel-path {
+  color: var(--fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-sel-meta {
+  color: var(--fg-subtle);
+  white-space: nowrap;
+}
