@@ -41,6 +41,23 @@ export function renderStatusBar(left: HTMLElement, right: HTMLElement, s: State)
   // ---- Left ---------------------------------------------------------------
   const leftItems: HTMLElement[] = [];
 
+  // The account tier leads the bar, as in the reference. It is the one status
+  // item that is about the person rather than the project, and the brand purple
+  // is what keeps it from being mistaken for a branch or a problem count.
+  leftItems.push(
+    h(
+      "span",
+      {
+        class: "status-account",
+        title: "Ducky account",
+        onClick: () => {
+          window.dispatchEvent(new CustomEvent("ducky:open-settings", { detail: "general" }));
+        },
+      },
+      "LITE",
+    ),
+  );
+
   if (s.workspace) {
     leftItems.push(
       statusButton(

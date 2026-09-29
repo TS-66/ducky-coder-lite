@@ -138,6 +138,11 @@ check("title bar is 44px", declValue(css, ".title-bar", "height") === "var(--h-t
   String(declValue(css, ".title-bar", "height")));
 check("tab strip is 35px", declValue(css, ".tab-strip", "height") === "var(--h-tab)",
   String(declValue(css, ".tab-strip", "height")));
+// The dock icon slots must share the dock's rhythm. A hardcoded pixel here drifts
+// a few pixels per item and reads as misalignment rather than as a choice.
+check("activity items are 48px slots, matching the dock rhythm",
+  declValue(css, ".activity-item", "height") === "var(--h-activity)",
+  String(declValue(css, ".activity-item", "height")));
 
 group("the Cmd+K island matches the specification");
 // 580px wide, 64px minimum, translucent with a cyan-tinted border.

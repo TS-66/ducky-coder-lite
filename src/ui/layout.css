@@ -64,7 +64,10 @@
 .activity-item {
   position: relative;
   width: 100%;
-  height: 44px;
+  /* One slot per --h-activity, so the icons land on the reference's 48px
+     rhythm. A hardcoded 44 left a 4px drift per item, which the eye reads as
+     the icons being slightly too high in their slots. */
+  height: var(--h-activity);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -4358,4 +4361,177 @@ html[data-low-memory="on"] .cmdk {
 .sidebar.is-resizing,
 .ai-panel.is-resizing {
   user-select: none;
+}
+
+/* ==========================================================================
+   The apply-hunk badge
+
+   Sits on the right edge of each hunk header. It says the diff is a control,
+   not a document: this part can be taken, and this is the key that takes it.
+   ========================================================================== */
+
+.diff-hunk-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.diff-hunk-header .mono {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.diff-hunk-key {
+  flex: none;
+  padding: 0 5px;
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
+  background: var(--bg-raised);
+  color: var(--fg-subtle);
+  font-family: var(--font-ui);
+  font-size: 10px;
+  line-height: 1.6;
+  cursor: pointer;
+  transition: color 90ms ease, border-color 90ms ease, background 90ms ease;
+}
+
+.diff-hunk-key:hover {
+  border-color: rgba(56, 189, 248, 0.4);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* ==========================================================================
+   Sidebar foot accordions
+
+   The reference pins OUTLINE and TIMELINE to the bottom of the explorer,
+   collapsed, uppercase and dimmed. They are not decoration: they are the two
+   views that answer "what is in this file" and "what changed recently", and
+   both are cheap enough to keep resident on a 2 GB machine.
+   ========================================================================== */
+
+.sidebar-foot {
+  border-top: 1px solid var(--border);
+  background: var(--bg-sidebar);
+  flex: none;
+}
+
+.side-accordion {
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.side-accordion:last-child {
+  border-bottom: 0;
+}
+
+.side-accordion-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  height: 22px;
+  padding: 0 6px 0 4px;
+  border: 0;
+  background: transparent;
+  color: var(--fg-muted);
+  font-size: 10px;
+  font-family: var(--font-ui);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-align: left;
+  cursor: pointer;
+  transition: color 90ms ease, background 90ms ease;
+}
+
+.side-accordion-head:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
+.side-accordion.is-open .side-accordion-head {
+  color: var(--fg-strong);
+}
+
+.side-accordion-body {
+  max-height: 220px;
+  overflow: auto;
+  padding: 2px 0 6px;
+  font-size: var(--fs-xs);
+  color: var(--fg-muted);
+}
+
+.side-accordion.is-empty .side-accordion-body {
+  color: var(--fg-subtle);
+  font-style: normal;
+  padding: 4px 8px 8px;
+}
+
+/* ==========================================================================
+   The status bar's account segment
+
+   The reference opens the status bar with a small filled block in the brand
+   purple, before the branch name. It is the account tier indicator, and it is
+   purple rather than cyan on purpose: cyan means "the model", purple means
+   "you", and the two should never be mistaken for each other.
+   ========================================================================== */
+
+.status-account {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 16px;
+  margin-right: 6px;
+  padding: 0 6px 0 5px;
+  border-radius: 3px;
+  background: var(--brand-purple);
+  color: #fff;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  font-family: var(--font-ui);
+}
+
+.status-account:hover {
+  filter: brightness(1.12);
+}
+
+/* Outline and timeline rows, inside the sidebar foot. */
+.side-outline-row,
+.side-timeline-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 18px;
+  padding: 0 6px;
+  color: var(--fg-muted);
+  cursor: pointer;
+  border-radius: 3px;
+}
+
+.side-outline-row:hover,
+.side-timeline-row:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
+.side-outline-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.side-outline-line {
+  flex: none;
+  color: var(--fg-subtle);
+  font-size: 9.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.sidebar-foot.is-hidden {
+  display: none;
 }

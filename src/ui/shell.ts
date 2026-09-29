@@ -36,6 +36,7 @@ export interface Shell {
   sidebarContent: HTMLElement;
   sidebarPanels: Map<PanelId, HTMLElement>;
   sidebarTitle: HTMLElement;
+  sidebarFoot: HTMLElement;
   editorTabs: HTMLElement;
   editorCrumbs: HTMLElement;
   editorArea: HTMLElement;
@@ -190,7 +191,11 @@ export function createShell(
     h("span", { class: "sidebar-title-text" }, "EXPLORER"),
     h("span", { class: "sidebar-title-actions" }),
   );
-  const sidebar = h("aside", { class: "sidebar" }, sidebarTitle, sidebarContent);
+  // The foot is a sibling of the panel area, not another panel: it stays put
+  // while the user switches between the tree, search and source control, and it
+  // hides with the explorer.
+  const sidebarFoot = h("div", { class: "sidebar-foot" });
+  const sidebar = h("aside", { class: "sidebar" }, sidebarTitle, sidebarContent, sidebarFoot);
 
   // Drag handles on the two outer panel edges. The reference specifies these as
   // resizable, and a fixed 240px cannot hold a deep path or a long diff.
@@ -316,6 +321,7 @@ export function createShell(
     sidebarContent,
     sidebarPanels,
     sidebarTitle,
+    sidebarFoot,
     editorTabs,
     editorCrumbs,
     editorArea,
@@ -411,6 +417,10 @@ export function renderShell(shell: Shell, s: State): void {
   for (const [id, el] of shell.sidebarPanels) {
     el.classList.toggle("is-hidden", !(s.sidebarVisible && id === s.activePanel));
   }
+  // The foot belongs to the explorer, so it goes away with it rather than
+  // sitting under the search box.
+  shell.sidebarFoot.classList.toggle("is-hidden",
+    !(s.sidebarVisible && s.activePanel === "explorer"));
   const activeHost = shell.sidebarPanels.get(s.activePanel);
   const renderView = shell.views.get(s.activePanel);
   if (renderView && activeHost && s.sidebarVisible) {

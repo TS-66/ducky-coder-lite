@@ -461,6 +461,12 @@ check("breadcrumb starts at the workspace root", text($(".editor-crumbs")).inclu
   text($(".editor-crumbs")));
 check("breadcrumb names the open file", /test_auth\.py|main\.rs/.test(text($(".editor-crumbs"))),
   text($(".editor-crumbs")));
+// The root must appear exactly once. It is a path, and a path that repeats its
+// own first segment looks like a bug even when every part is technically true.
+const crumbText = text($(".editor-crumbs"));
+const rootOccurrences = (crumbText.match(/demo/g) || []).length;
+check("the workspace name is not repeated in the breadcrumb", rootOccurrences === 1,
+  `${rootOccurrences} occurrence(s): ${crumbText}`);
 check("model capsule is present", !!$(".title-model"));
 
 // The model menu, checked against the reference screenshot's structure: a hint

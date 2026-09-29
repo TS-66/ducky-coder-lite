@@ -39,6 +39,7 @@ import {
 
 import { createShell, renderShell, renderBottomTabs, renderWelcome } from "./ui/shell";
 import { renderTabs, renderCrumbs, resetTabSignature } from "./ui/tabs";
+import { renderSidebarFoot } from "./ui/sidebar-foot";
 import { renderStatusBar, setCursorPos } from "./ui/statusbar";
 import {
   renderExplorer,
@@ -221,6 +222,7 @@ const paint = raf(() => {
   shell.titleBar.render(s);
   renderTabs(shell.editorTabs, s);
   renderCrumbs(shell.editorCrumbs, s);
+  renderSidebarFoot(shell.sidebarFoot, s);
   renderStatusBar(shell.statusLeft, shell.statusRight, s);
   if (s.bottomPanel) renderBottomTabs(shell, s);
   if (s.settings) applyEditorVars(shell.editorHost, s.settings);

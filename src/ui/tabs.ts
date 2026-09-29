@@ -233,7 +233,12 @@ export function resetTabSignature(): void {
 export function renderCrumbs(host: HTMLElement, s: State): void {
   const active = s.tabs.find((t) => t.id === s.activeTabId);
   const root = s.workspace?.name || "workspace";
-  const parts = (active?.path || "").split("/").filter(Boolean);
+  // Paths are stored relative to the parent of the project, so the first segment
+  // is usually the project name again. Showing both it and the root printed
+  // "demo-project demo-project src" -- the duplication the reference does not
+  // have, and which reads as a rendering fault rather than as a path.
+  const segments = (active?.path || "").split("/").filter(Boolean);
+  const parts = segments[0] === root ? segments.slice(1) : segments;
 
   const nodes: HTMLElement[] = [];
   const push = (node: HTMLElement): void => {

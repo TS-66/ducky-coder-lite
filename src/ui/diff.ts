@@ -15,9 +15,12 @@
  * a coarse diff rather than an O(n²) stall.
  */
 
-import { h, fill, clear, escapeHtml } from "../core/dom";
+import { h, fill, clear, escapeHtml, IS_MAC } from "../core/dom";
 import { icons } from "./icons";
 import { openFile, store, toast } from "../core/store";
+
+/** The modifier the apply-hunk keycap is labelled with. */
+const ACCENT_KEY = IS_MAC ? "⌘" : "Ctrl+";
 
 export type DiffOp = "context" | "add" | "del" | "mod";
 
@@ -324,7 +327,15 @@ export function openDiff(req: DiffRequest): void {
       h(
         "div",
         { class: "diff-hunk" },
-        h("div", { class: "diff-hunk-header mono" }, hunk.header),
+        h(
+          "div",
+          { class: "diff-hunk-header" },
+          h("span", { class: "mono" }, hunk.header),
+          // The apply key for this hunk, on the right edge. Present in the
+          // reference and worth keeping: it is the one piece of the diff UI
+          // that says the diff is actionable rather than merely readable.
+          h("span", { class: "diff-hunk-key", title: "Apply this hunk" }, `${ACCENT_KEY}⏎`),
+        ),
         h(
           "div",
           { class: "diff-hunk-lines" },
