@@ -545,6 +545,49 @@ await settle(300);
 check("Ctrl+L with no selection reports why, and does not crash",
   !!$(".toast, .toast-item") || true);
 
+// The panels are drag-resizable, which the reference requires and which a fixed
+// width cannot do. Assert the handle exists and that a drag actually resizes.
+group("panel resizing");
+check("the sidebar has a resize handle", !!$(".sidebar .panel-resizer"));
+check("the AI panel has one on its left edge", !!$(".ai-panel .panel-resizer--left"));
+check("the handle is a focusable separator", (() => {
+  const hs = $a(".panel-resizer");
+  return hs.length === 2 && hs.every((x) => x.getAttribute("role") === "separator" && x.tabIndex === 0);
+})());
+const wBefore = $(".sidebar").style.width;
+check("the sidebar starts at the reference width", wBefore === "240px", wBefore);
+check("the AI panel starts at the reference width", $(".ai-panel").style.width === "380px",
+  $(".ai-panel").style.width);
+
+// Drag: pointerdown on the handle, move, up. jsdom has no pointer capture, so
+// the listeners on window are what actually get exercised.
+const handle = $(".sidebar .panel-resizer");
+handle.dispatchEvent(new W.PointerEvent("pointerdown", { bubbles: true, cancelable: true, clientX: 300 }));
+await settle(60);
+check("dragging marks the panel so text is not selected",
+  $(".sidebar").classList.contains("is-resizing"), $(".sidebar").className);
+W.dispatchEvent(new W.PointerEvent("pointermove", { bubbles: true, clientX: 360 }));
+await settle(80);
+W.dispatchEvent(new W.PointerEvent("pointerup", { bubbles: true }));
+await settle(120);
+const wAfter = $(".sidebar").style.width;
+check("the drag widened the sidebar", parseInt(wAfter) > parseInt(wBefore), `${wBefore} -> ${wAfter}`);
+check("the class is cleared when the drag ends", !$(".sidebar").classList.contains("is-resizing"));
+
+// Clamped: the editor must never be squeezed out of existence.
+W.dispatchEvent(new W.PointerEvent("pointermove", { bubbles: true, clientX: 4000 }));
+await settle(60);
+const wHuge = parseInt($(".sidebar").style.width);
+check("the sidebar is clamped to what the window can afford", wHuge <= 520, `${wHuge}px`);
+W.dispatchEvent(new W.PointerEvent("pointerup", { bubbles: true }));
+await settle(100);
+
+// Back to the reference width for the assertions that follow.
+$(".sidebar .panel-resizer").dispatchEvent(new W.MouseEvent("dblclick", { bubbles: true }));
+await settle(150);
+check("double-click restores the reference width", $(".sidebar").style.width === "240px",
+  $(".sidebar").style.width);
+
 group("Ducky AI panel");
 click(panelFor("Ducky AI"));
 await settle(250);

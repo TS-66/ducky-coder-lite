@@ -24,6 +24,7 @@
 
 import { h, fill, clear, button, IS_MAC } from "../core/dom";
 import { createTitleBar, type TitleBar } from "./titlebar";
+import { installResizer, panelCeiling, BOUNDS } from "./resizers";
 import { icons } from "./icons";
 import { store, type PanelId, type State } from "../core/store";
 import { api } from "../core/backend";
@@ -191,6 +192,22 @@ export function createShell(
   );
   const sidebar = h("aside", { class: "sidebar" }, sidebarTitle, sidebarContent);
 
+  // Drag handles on the two outer panel edges. The reference specifies these as
+  // resizable, and a fixed 240px cannot hold a deep path or a long diff.
+  installResizer({
+    panel: sidebar,
+    edge: "right",
+    getMin: () => BOUNDS.SIDEBAR_MIN,
+    getMax: () => Math.min(BOUNDS.SIDEBAR_MAX, panelCeiling({
+      sidebar: true,
+      ai: store.state.aiPanelVisible,
+    })),
+    read: () => store.state.sidebarWidth,
+    write: (px) => store.update((st) => {
+      st.sidebarWidth = px;
+    }),
+  });
+
   // --- Editor -------------------------------------------------------------
   const editorTabs = h("div", { class: "tab-strip", role: "tablist" });
   // The path of the active file gets its own row under the tabs. It changes
@@ -210,6 +227,7 @@ export function createShell(
 
   // --- AI panel -----------------------------------------------------------
   const aiContent = h("div", { class: "ai-content" });
+
   const aiPanel = h(
     "aside",
     { class: "ai-panel" },
@@ -231,6 +249,21 @@ export function createShell(
     ),
     aiContent,
   );
+
+  // The AI panel's handle is on its *left* edge, because dragging left widens it.
+  installResizer({
+    panel: aiPanel,
+    edge: "left",
+    getMin: () => BOUNDS.AI_MIN,
+    getMax: () => Math.min(BOUNDS.AI_MAX, panelCeiling({
+      sidebar: store.state.sidebarVisible,
+      ai: true,
+    })),
+    read: () => store.state.aiWidth,
+    write: (px) => store.update((st) => {
+      st.aiWidth = px;
+    }),
+  });
 
   // --- Bottom panel -------------------------------------------------------
   const bottomTabs = h("div", { class: "bottom-tabs" });
@@ -342,6 +375,12 @@ const TITLES: Record<PanelId, string> = {
 
 /** Apply layout and chrome from state. Called on every render. */
 export function renderShell(shell: Shell, s: State): void {
+  // The panel widths live in the store so a drag survives a re-render, and are
+  // written to the element rather than to a style attribute so a reset can
+  // simply stop overriding.
+  shell.sidebar.style.width = `${s.sidebarWidth}px`;
+  shell.aiPanel.style.width = `${s.aiWidth}px`;
+
   // Activity bar selection.
   for (const [id, btn] of [
     ["explorer", shell.root.querySelector<HTMLButtonElement>(".activity-item")],

@@ -127,6 +127,9 @@ export interface State {
 
   activePanel: PanelId;
   panelPosition: Record<PanelId, PanelPosition>;
+  /** Panel widths, in px. Drag-resizable, and kept between sessions. */
+  sidebarWidth: number;
+  aiWidth: number;
   sidebarVisible: boolean;
   panelVisible: boolean;
   aiPanelVisible: boolean;
@@ -219,6 +222,8 @@ class Store {
       extensions: "left",
       ducky: "right",
     },
+    sidebarWidth: 240,
+    aiWidth: 380,
     sidebarVisible: true,
     panelVisible: false,
     aiPanelVisible: false,

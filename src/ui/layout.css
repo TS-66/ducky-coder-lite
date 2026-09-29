@@ -1699,12 +1699,15 @@
 /* ------------------------------------------------------------------ AI panel */
 
 .ai-panel {
-  width: 360px;
-  min-width: 260px;
+  /* 380px, from the reference. The width lives here and only here: a second
+     `.ai-panel` rule further down the file silently overrode this one, and the
+     panel rendered at 360px for anyone who read the earlier rule. */
+  width: var(--w-ai);
+  min-width: 320px;
   display: flex;
   flex-direction: column;
-  background: var(--bg-sidebar);
-  border-left: 1px solid var(--border-subtle);
+  background: var(--bg-panel);
+  border-left: 1px solid var(--border);
   overflow: hidden;
   position: relative;
 }
@@ -3706,13 +3709,6 @@ html[data-low-memory="on"] .title-spinner {
    that would not wrap at 360, and nothing relies on horizontal scrolling.
    ========================================================================== */
 
-.ai-panel {
-  width: var(--w-ai);
-  min-width: 320px;
-  background: var(--bg-panel);
-  border-left: 1px solid var(--border);
-}
-
 /* --- Chat / Composer segmented control ------------------------------------ */
 
 .ai-seg {
@@ -4309,4 +4305,57 @@ html[data-low-memory="on"] .cmdk {
 .ai-sel-meta {
   color: var(--fg-subtle);
   white-space: nowrap;
+}
+
+/* ==========================================================================
+   Panel resize handles
+
+   A 4px strip on the panel's trailing edge. It is invisible until the pointer
+   is near it, so it never competes with the content, but the hit area is the
+   full 4px the whole time -- a 1px target on a 240px panel is a precision
+   task rather than a drag.
+   ========================================================================== */
+
+.panel-resizer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  z-index: 6;
+  cursor: col-resize;
+  background: transparent;
+  transition: background 120ms ease;
+}
+
+.panel-resizer--right {
+  right: -2px;
+}
+
+.panel-resizer--left {
+  left: -2px;
+}
+
+.panel-resizer:hover,
+.panel-resizer:focus-visible {
+  background: var(--accent-soft);
+  outline: none;
+}
+
+/* While dragging, the accent line is the feedback: the number in the status bar
+   would need a repaint per pixel, and the panel itself is the readout. */
+.panel-resizer--right:hover ~ * ,
+.is-resizing > .panel-resizer {
+  background: var(--accent-glow);
+}
+
+.sidebar,
+.ai-panel {
+  position: relative;
+}
+
+/* The rule the reference has said was dead: the class is now applied by the
+   resizer, so dragging really does stop the text selection. */
+.sidebar.is-resizing,
+.ai-panel.is-resizing {
+  user-select: none;
 }

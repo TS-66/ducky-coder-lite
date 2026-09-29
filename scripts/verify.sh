@@ -92,6 +92,19 @@ if [ "$STAGE" = "all" ] || [ "$STAGE" = "frontend" ]; then
     grep -E "FAIL|FAILURES" "$LOG_DIR/interact.log" | head -20 | sed 's/^/        /'
   fi
 
+  stage "Reference conformance"
+  # The colours and geometry are checked against values sampled from the
+  # reference screenshots and the written specification. This is the strongest
+  # check available for the UI: the app cannot be rendered to pixels here, so a
+  # wrong hex or a wrong column width is a fact this catches and a screenshot
+  # review would only have to take on trust.
+  if node scripts/conformance.mjs > "$LOG_DIR/conformance.log" 2>&1; then
+    ok "$(grep -oE '[0-9]+ passed' "$LOG_DIR/conformance.log" | tail -1)"
+  else
+    bad "conformance failures"
+    grep FAIL "$LOG_DIR/conformance.log" | head -20 | sed 's/^/        /'
+  fi
+
   stage "Boot smoke test"
   if node --max-old-space-size=900 scripts/smoke.mjs > "$LOG_DIR/smoke.log" 2>&1; then
     ok "boots clean"
